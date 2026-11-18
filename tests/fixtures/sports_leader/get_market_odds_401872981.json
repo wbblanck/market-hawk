@@ -1,0 +1,165 @@
+{
+ "sport": "football",
+ "league": "nfl",
+ "eventId": "401872981",
+ "fetchedAt": "2026-11-18T23:49:34.792Z",
+ "matchedBy": "eventId",
+ "averaged": false,
+ "pricesNote": "Venues are listed separately and are never averaged. Kalshi prices are the *_dollars fields (0 to 1). Polymarket global prices are gamma_outcome_prices unless includeBook requested the CLOB book (clob_book). Polymarket US prices are the keyless best bid/offer. A missing venue is status \"no market found\".",
+ "game": {
+  "name": "Philadelphia Eagles at Jacksonville Jaguars",
+  "startUtc": "2026-10-11T13:30Z",
+  "easternDate": "2026-10-11",
+  "away": {
+   "id": "21",
+   "abbrev": "PHI",
+   "location": "Philadelphia",
+   "name": "Eagles",
+   "displayName": "Philadelphia Eagles"
+  },
+  "home": {
+   "id": "30",
+   "abbrev": "JAX",
+   "location": "Jacksonville",
+   "name": "Jaguars",
+   "displayName": "Jacksonville Jaguars"
+  }
+ },
+ "venues": [
+  {
+   "venue": "kalshi",
+   "status": "ok",
+   "matchedBy": "teams+scheduledDate",
+   "events": [
+    {
+     "eventTicker": "KXNFLGAME-26OCT11PHIJAC",
+     "scheduledDate": "2026-10-11",
+     "away": {
+      "code": "PHI",
+      "name": "Philadelphia",
+      "nickname": "Eagles"
+     },
+     "home": {
+      "code": "JAC",
+      "name": "Jacksonville",
+      "nickname": "Jaguars"
+     },
+     "markets": [
+      {
+       "ticker": "KXNFLGAME-26OCT11PHIJAC-PHI",
+       "outcome": "PHI",
+       "title": "Philadelphia wins",
+       "yesBid": 0.41,
+       "yesAsk": 0.43,
+       "noBid": 0.57,
+       "noAsk": 0.59,
+       "last": 0.42,
+       "line": null,
+       "priceSource": "dollars"
+      },
+      {
+       "ticker": "KXNFLGAME-26OCT11PHIJAC-JAC",
+       "outcome": "JAC",
+       "title": "Jacksonville wins",
+       "yesBid": 0.57,
+       "yesAsk": 0.59,
+       "noBid": 0.41,
+       "noAsk": 0.43,
+       "last": 0.58,
+       "line": null,
+       "priceSource": "dollars"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "venue": "polymarket",
+   "status": "ok",
+   "matchedBy": "teams+eventDate",
+   "events": [
+    {
+     "venue": "polymarket",
+     "slug": "nfl-phi-jax-2026-10-11",
+     "title": "Eagles vs. Jaguars",
+     "eventDate": "2026-10-11",
+     "startTime": "2026-10-11T13:30:00Z",
+     "usId": "nfl-phi-jax-2026-10-11",
+     "away": {
+      "code": "phi",
+      "name": "Philadelphia Eagles"
+     },
+     "home": {
+      "code": "jax",
+      "name": "Jacksonville Jaguars"
+     },
+     "markets": [
+      {
+       "slug": "nfl-phi-jax-2026-10-11",
+       "question": "Eagles vs. Jaguars",
+       "sportsMarketType": "moneyline",
+       "line": null,
+       "outcomes": [
+        {
+         "name": "Eagles",
+         "tokenId": "111",
+         "price": 0.42,
+         "priceSource": "gamma_outcome_prices"
+        },
+        {
+         "name": "Jaguars",
+         "tokenId": "222",
+         "price": 0.58,
+         "priceSource": "gamma_outcome_prices"
+        }
+       ],
+       "priceSource": "gamma_outcome_prices"
+      }
+     ],
+     "matchedBy": "teams+eventDate"
+    }
+   ]
+  },
+  {
+   "venue": "polymarket_us",
+   "status": "ok",
+   "matchedBy": "teams+eventDate+usId",
+   "slug": "aec-nfl-phi-jax-2026-10-11",
+   "usId": "nfl-phi-jax-2026-10-11",
+   "priceSource": "bbo",
+   "events": [
+    {
+     "venue": "polymarket_us",
+     "slug": "aec-nfl-phi-jax-2026-10-11",
+     "usId": "nfl-phi-jax-2026-10-11",
+     "priceSource": "bbo",
+     "matchedBy": "teams+eventDate+usId",
+     "long": {
+      "side": "away",
+      "code": "phi",
+      "name": "Philadelphia Eagles",
+      "bid": 0.41,
+      "ask": 0.43,
+      "last": 0.42,
+      "current": 0.42,
+      "mid": 0.42,
+      "label": "mid",
+      "quote": 0.43,
+      "priceSource": "bbo"
+     },
+     "short": {
+      "side": "home",
+      "code": "jax",
+      "name": "Jacksonville Jaguars",
+      "bid": 0.57,
+      "ask": 0.59,
+      "mid": 0.58,
+      "label": "mid",
+      "quote": 0.59,
+      "priceSource": "bbo"
+     }
+    }
+   ]
+  }
+ ]
+}

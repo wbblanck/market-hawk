@@ -10,6 +10,7 @@ PROVIDERS=[
  {"name":"Polymarket US","status":"planned_adapter","url":"https://polymarket.us/","use":"Event-contract comparison"},
  {"name":"Action Network","status":"research_source","url":"https://www.actionnetwork.com/","use":"Market context"},
  {"name":"OpenMarkets","status":"research_source","url":"https://openmarkets.io/","use":"Odds/data research"},
- {"name":"ParlayAPI","status":"research_source","url":"https://parlayapi.com/","use":"Odds API exploration"}
+ {"name":"ParlayAPI","status":"research_source","url":"https://parlayapi.com/","use":"Odds API exploration"},
+ {"name":"Sports Leader MCP","status":"optional_adapter","url":"https://github.com/WalrusQuant/sports-leader-mcp","use":"Optional: current sportsbook odds (ESPN), Kalshi/Polymarket/Polymarket US prices, NFL stats export. Stats are not historical quotes; market history comes only from our own snapshots","module":"nfl_market.integrations.sports_leader"}
 ]
 def provider_registry(): return PROVIDERS

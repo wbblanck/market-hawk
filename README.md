@@ -28,6 +28,19 @@ Positive CLV is always favourable to the bettor, and line CLV and price CLV are 
 
 Spreads always use the selected team's own spread (`line_clv = bet - close`). Price CLV compares devigged fair probabilities on the same exact line and is left empty when the line moved.
 
+## Market snapshots (data layer)
+We build our own market history: each collection run stamps one capture time at receipt (never backfilled from source timestamps) and appends every quote, with its original payload and quality flags, to the `market_snapshots` table. Sportsbook spread and total quotes that pass validation are also routed into `quote_snapshots`.
+
+```bash
+pip install -e ".[sports-leader]"
+export NFLMI_SPORTS_LEADER_CMD="node /path/to/sports-leader-mcp/dist/index.js"
+python scripts/collect_snapshots.py --date 2026-10-11 --season 2026 --week 6
+```
+
+[Sports Leader MCP](https://github.com/WalrusQuant/sports-leader-mcp) is optional: without Node, the server, or the `mcp` SDK the provider reports unavailable and everything else runs. It supplies current sportsbook odds (no source timestamps), Kalshi/Polymarket/Polymarket US winner prices, and NFL statistics. Its statistics are not historical sportsbook quotes. Behind a proxy, Node 22 needs `NODE_USE_ENV_PROXY=1`.
+
+Development standards for validation, leakage, features, calibration, closing lines, experiment logs and model cards are in [`docs/methodology/`](docs/methodology/README.md).
+
 ## MCP server
 `python -m nfl_market.mcp_server.server` runs over stdio. Use `--transport sse` or `--transport streamable-http` (with `--host`/`--port`, default 127.0.0.1:8000) for network transports, which have no authentication. Works with MCP SDK 1.x and 2.x.
 

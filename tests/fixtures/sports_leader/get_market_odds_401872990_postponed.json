@@ -1,0 +1,87 @@
+{
+ "sport": "football",
+ "league": "nfl",
+ "eventId": "401872990",
+ "fetchedAt": "2026-11-18T23:49:34.883Z",
+ "matchedBy": "eventId",
+ "averaged": false,
+ "pricesNote": "Venues are listed separately and are never averaged. Kalshi prices are the *_dollars fields (0 to 1). Polymarket global prices are gamma_outcome_prices unless includeBook requested the CLOB book (clob_book). Polymarket US prices are the keyless best bid/offer. A missing venue is status \"no market found\".",
+ "game": {
+  "name": "Chicago Bears at Green Bay Packers",
+  "startUtc": "2026-10-11T17:00Z",
+  "easternDate": "2026-10-11",
+  "away": {
+   "id": "3",
+   "abbrev": "CHI",
+   "location": "Chicago",
+   "name": "Bears",
+   "displayName": "Chicago Bears"
+  },
+  "home": {
+   "id": "9",
+   "abbrev": "GB",
+   "location": "Green Bay",
+   "name": "Packers",
+   "displayName": "Green Bay Packers"
+  }
+ },
+ "venues": [
+  {
+   "venue": "kalshi",
+   "status": "ok",
+   "matchedBy": "teams (Kalshi ticker date 2026-10-10; postponed games keep the original scheduled date)",
+   "events": [
+    {
+     "eventTicker": "KXNFLGAME-26OCT10CHIGB",
+     "scheduledDate": "2026-10-10",
+     "away": {
+      "code": "CHI",
+      "name": "Chicago",
+      "nickname": "Bears"
+     },
+     "home": {
+      "code": "GB",
+      "name": "Green Bay",
+      "nickname": "Packers"
+     },
+     "markets": [
+      {
+       "ticker": "KXNFLGAME-26OCT10CHIGB-GB",
+       "outcome": "GB",
+       "title": "Green Bay wins",
+       "yesBid": 0.5,
+       "yesAsk": 0.52,
+       "noBid": 0.48,
+       "noAsk": 0.5,
+       "last": 0.51,
+       "line": null,
+       "priceSource": "dollars"
+      },
+      {
+       "ticker": "KXNFLGAME-26OCT10CHIGB-CHI",
+       "outcome": "CHI",
+       "title": "Chicago wins",
+       "yesBid": 0.48,
+       "yesAsk": 0.5,
+       "noBid": 0.5,
+       "noAsk": 0.52,
+       "last": 0.49,
+       "line": null,
+       "priceSource": "dollars"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "venue": "polymarket",
+   "status": "no market found",
+   "matchedBy": null
+  },
+  {
+   "venue": "polymarket_us",
+   "status": "no market found",
+   "matchedBy": null
+  }
+ ]
+}
