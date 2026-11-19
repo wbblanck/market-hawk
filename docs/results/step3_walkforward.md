@@ -244,7 +244,7 @@ every earlier game is used, as in the source; "label rule" = our deployed walk-f
 | label rule on the hand schedule, week 2 (Wednesday game after a Monday game) | Elo d 19.5; Kalman mean 3.22; level 0.023 | expected diff | week 1's labels (Wednesday 12:00 ET) arrive after week 2's first T (Tuesday), so all week-1 results are excluded; the Elo difference equals week 1's rating updates exactly, Kalman falls back to the prior (mean h, variance 98 + sigma_m^2). Weeks 3+ match the source exactly |
 | XGB features elo_d, elo_fair, kalman, kalman_var, level, rest, neutral, div_game, week (2018) | 0 at 6 dp | pass | |
 | XGB feature dome | 34 of 2018's REG week 2-18 games | expected diff | ours = roof "dome" only (a retractable roof's state is decided on game day); the source also counts "closed". The differing rows are exactly the "closed" ones |
-| XGB estimator vs source booster on the same feature matrix | 4.6e-08 | pass | float32 output noise. Our deployed XGB still differs from the source by design: no QB or EPA features, weekly expanding refits, and a total model |
+| XGB estimator vs source booster on the same feature matrix | 4.6e-08 | pass | float32 output noise. Booster output changes between xgboost releases, so CI compares against the source training call (`xgb.train(PARAMS, ..., n)`) in the installed xgboost, and against the stored goldens (xgboost 3.4.1) when versions match. Our deployed XGB still differs from the source by design: no QB or EPA features, weekly expanding refits, and a total model |
 
 Not covered: franchise mapping (the source also maps JAC->JAX and LAR->LA; those codes do not occur in our
 nflverse data, see `tests/test_games_loader.py::test_franchise_continuity`), and the source's QB, EPA and

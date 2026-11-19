@@ -258,5 +258,18 @@ def test_xgb_reproduces_source_predictions():
     y = np.array(xg["y"], float)
     tr, te = np.array(xg["is_train"]), np.array(xg["is_test"])
     pred = XGBModel()._make("margin", None).fit(X[tr], y[tr]).predict(X[te])
-    assert _maxdiff("xgb_v1 estimator vs source booster (same matrix)", pred, _arr(xg["pred"])) < 1e-5
+    # Reference: the source's own training call (xgb.train with its PARAMS and tree count, as in
+    # nflbet/ats/xgb.py), run in the installed xgboost. Booster output changes across xgboost releases
+    # (CI resolves 3.2.0 on Python 3.11; goldens were made on 3.4.1), so the port is checked against the
+    # source setup in the same xgboost, and against the stored goldens when the version matches.
+    import xgboost as xgb
+
+    ref = xgb.train(dict(xg["params"]), xgb.DMatrix(X[tr], label=y[tr]), num_boost_round=xg["n_trees"])
+    ref_pred = ref.predict(xgb.DMatrix(X[te]))
+    assert _maxdiff("xgb_v1 estimator vs source training call (same matrix, same xgboost)", pred, ref_pred) < 1e-5
+    if xgb.__version__ == xg["xgboost_version"]:
+        assert _maxdiff("source training call vs goldens (same xgboost version)", ref_pred, _arr(xg["pred"])) < 1e-5
+    else:
+        REPORT[f"XGB goldens made on xgboost {xg['xgboost_version']}, installed {xgb.__version__}: "
+               "compared to the in-environment source call only"] = 0.0
 
