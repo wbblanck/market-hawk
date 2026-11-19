@@ -132,11 +132,13 @@ def elo_history(history: pd.DataFrame, params: EloParams = EloParams()) -> pd.Da
     })
 
 
-def scoring_level(history: pd.DataFrame, rows: pd.DataFrame) -> np.ndarray:
+def scoring_level(history: pd.DataFrame, rows: pd.DataFrame, source_timing: bool = False) -> np.ndarray:
     """League points per team-game known at each row's T (source ``scoring_level``, made strictly as-of).
 
     Previous regular season's mean (21.0 if none) blended with current-season
     regular-season games whose label is available before T, weight 128 team-games.
+    ``source_timing=True`` reproduces the source exactly (current-season REG games
+    of earlier weeks, regardless of label time); used only by the parity tests.
     """
     hist = history.loc[labelled(history) & (history["game_type"] == "REG")]
     T = to_ns(prediction_time(rows))
@@ -145,6 +147,8 @@ def scoring_level(history: pd.DataFrame, rows: pd.DataFrame) -> np.ndarray:
     hs = hist["season"].to_numpy(int)
     lab = to_ns(hist["label_available_at_utc"])
     out = np.empty(len(rows))
+    if source_timing:
+        hw, rw = hist["week"].to_numpy(int), rows["week"].to_numpy(int)
     for s in np.unique(seasons):
         prev = hs == s - 1
         pm = float(pts[prev].mean() / 2.0) if prev.any() else DEFAULT_LEVEL
@@ -153,6 +157,11 @@ def scoring_level(history: pd.DataFrame, rows: pd.DataFrame) -> np.ndarray:
         o = np.argsort(cl, kind="stable")
         cl, cc = cl[o], np.concatenate([[0.0], np.cumsum(cp[o])])
         q = np.flatnonzero(seasons == s)
+        if source_timing:
+            cw, cpts = hw[cur], cp
+            done = cw[None, :] < rw[q][:, None]
+            out[q] = (PRIOR_N * pm + (done * cpts[None, :]).sum(1)) / (PRIOR_N + 2.0 * done.sum(1))
+            continue
         n = np.searchsorted(cl, T[q], side="left")
         out[q] = (PRIOR_N * pm + cc[n]) / (PRIOR_N + 2.0 * n)
     return out

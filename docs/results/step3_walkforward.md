@@ -218,6 +218,38 @@ What differs from the source runs:
 | XGBoost training | fit once on 2016-2021 REG weeks 2-18, frozen | refit every week on all labelled games since 2000 (expanding window), total model added |
 | close benchmark | nflverse spread_line | same column, labelled capture time unknown |
 
+## Parity with original code
+
+Goldens: `tests/fixtures/parity/models_goldens.json`, produced by `scripts/parity/make_goldens_models.py`, which
+imports the original wbblanck/nfl-betting-model code (commit `4bd6a96ed77b`; `nflbet.ats.elo`, `nflbet.ats.kalman`,
+`nflbet.ats.xgb`) and runs it on the committed fixture `tests/fixtures/nflverse/games_sample.csv` (2015-2018) and on
+a hand-built 4-team schedule with a Monday game followed by a Wednesday game. `tests/test_parity_models.py`
+(10 tests, about 2.5s) checks our ports against the goldens without importing the originals. "Source timing" =
+every earlier game is used, as in the source; "label rule" = our deployed walk-forward models.
+
+| component | max abs diff | verdict | note |
+|---|---|---|---|
+| frozen constants (Elo k/h/c/b/theta, Kalman h/sigma_m/tau_w/rho/tau_s, XGB params + 100 trees) | identical | pass | |
+| Elo pre-game ratings r_home/r_away, source timing (fixture, hand) | 5e-12 | pass | |
+| Elo gap d incl. home field (fixture, hand) | 5e-13 | pass | |
+| Elo win probability (fixture, hand) | 5e-16 | pass | |
+| Elo final ratings (fixture, hand) | 0 | pass | |
+| Elo scoring level, source timing (fixture, hand) | 4e-14 | pass | `scoring_level(..., source_timing=True)` |
+| NB score means mu_home/mu_away | 6e-14 | pass | |
+| NB pmf moments and P(win), pmf truncated at 0-100 like the source | 7e-13 | pass | reproduces the source's convolution |
+| NB moments, our analytic values vs the source's 0-100 pmf | mean 0.072 (margin), 0.094 (total); SD 0.123 | expected diff | the source truncates each team's pmf at 100 points without renormalising; ours are the untruncated NB moments |
+| Kalman forecast mean / variance, source timing (fixture, hand) | 5e-13 | pass | |
+| `elo_v1` walk-forward (label rule), 2018: margin, win prob | 9e-14 | pass | no 2018 game is affected by the label rule |
+| `kalman_gs_v1` walk-forward (label rule), 2018: mean, variance | 5e-13 | pass | |
+| label rule on the hand schedule, week 2 (Wednesday game after a Monday game) | Elo d 19.5; Kalman mean 3.22; level 0.023 | expected diff | week 1's labels (Wednesday 12:00 ET) arrive after week 2's first T (Tuesday), so all week-1 results are excluded; the Elo difference equals week 1's rating updates exactly, Kalman falls back to the prior (mean h, variance 98 + sigma_m^2). Weeks 3+ match the source exactly |
+| XGB features elo_d, elo_fair, kalman, kalman_var, level, rest, neutral, div_game, week (2018) | 0 at 6 dp | pass | |
+| XGB feature dome | 34 of 2018's REG week 2-18 games | expected diff | ours = roof "dome" only (a retractable roof's state is decided on game day); the source also counts "closed". The differing rows are exactly the "closed" ones |
+| XGB estimator vs source booster on the same feature matrix | 4.6e-08 | pass | float32 output noise. Our deployed XGB still differs from the source by design: no QB or EPA features, weekly expanding refits, and a total model |
+
+Not covered: franchise mapping (the source also maps JAC->JAX and LAR->LA; those codes do not occur in our
+nflverse data, see `tests/test_games_loader.py::test_franchise_continuity`), and the source's QB, EPA and
+injury inputs, which are not ported.
+
 ## Open issues
 
 - QB effects skipped: nflverse `home_qb_id`/`away_qb_id` are post-game starters. Needs pre-game depth chart /
