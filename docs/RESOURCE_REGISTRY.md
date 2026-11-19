@@ -10,6 +10,7 @@
 - Polymarket US: https://polymarket.us/ — planned contract adapter.
 - Action Network: https://www.actionnetwork.com/ — research source.
 - OpenMarkets: https://openmarkets.io/ — research source.
+- Sports Leader MCP: https://github.com/WalrusQuant/sports-leader-mcp — optional adapter (`nfl_market.integrations.sports_leader`, MIT). Current ESPN sportsbook odds without source timestamps, Kalshi/Polymarket/Polymarket US winner prices (keyless), NFL statistics export from 2021. Stats are not historical quotes. Live fetch not yet verified from this environment.
 - ParlayAPI: https://parlayapi.com/ — research source.
 
 Promotion to verified-live requires an integration test for authentication, timestamps, event/market mapping, error handling and terms. Resource references do not prove access or data rights.
