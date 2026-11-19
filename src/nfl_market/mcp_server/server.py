@@ -1,4 +1,10 @@
-"""Read-only MCP server over the local quote store.
+"""Read-only MCP server over the local quote store and the step-4 analytics reads.
+
+Every analytics tool returns exactly what :class:`AnalyticsService` returns for the same
+inputs (service parity with the dashboard); nothing here computes prices, edges or CLV.
+There are no write tools and no wager placement. Invalid inputs raise ``ValueError`` with
+a readable message, which the SDK returns as a tool error. Result sizes are capped by the
+service (``limit`` at most ``MAX_LIMIT``).
 
 Transports: ``stdio`` (default, local), ``sse`` and ``streamable-http``. Network
 transports bind to ``NFLMI_MCP_HOST``/``NFLMI_MCP_PORT`` (127.0.0.1:8000 by
@@ -17,6 +23,7 @@ import numpy as np
 import pandas as pd
 
 from ..config import settings
+from ..services.analytics_service import AnalyticsService
 from ..services.market_service import MarketService
 
 TRANSPORTS = ("stdio", "sse", "streamable-http")
@@ -69,13 +76,15 @@ def _server_class():
         raise RuntimeError("Install with pip install -e '.[mcp]'") from e
 
 
-def build_server(service: MarketService | None = None, host: str | None = None, port: int | None = None):
+def build_server(service: MarketService | None = None, analytics: AnalyticsService | None = None,
+                 host: str | None = None, port: int | None = None):
     cls, major = _server_class()
     host = host or settings.mcp_host
     port = port or settings.mcp_port
     m = cls("Market Hawk") if major == 2 else cls("Market Hawk", host=host, port=port)
     m._market_hawk_net = {"host": host, "port": port, "sdk_major": major}
     s = service or MarketService()
+    a = analytics or AnalyticsService(market_service=s)
 
     @m.tool()
     def get_nfl_slate() -> list[dict]:
@@ -96,6 +105,52 @@ def build_server(service: MarketService | None = None, host: str | None = None, 
     def get_system_health() -> dict:
         "Return health derived from the data actually stored."
         return to_jsonable(s.health())
+
+    @m.tool()
+    def get_edges(as_of: str | None = None, min_ev: float | None = None, limit: int = 50) -> list[dict]:
+        """Model edges on stored quotes (latest quote per book/contract at as_of, ISO-8601; default now),
+        best EV per unit first. min_ev filters on ev_per_unit; limit 1-500. Rows with synthetic=true are demo
+        data; non-empty flags mean the row must not be treated as a clean edge."""
+        return frame_records(a.edges(as_of=as_of, min_ev=min_ev, limit=limit))
+
+    @m.tool()
+    def get_bet_log(season: int | None = None, limit: int = 200) -> list[dict]:
+        """Paper (shadow) bet log, newest decision first; limit 1-500. Line CLV (points) and price CLV
+        (probability) are separate fields with their own close tier; null CLV means the close is missing."""
+        return frame_records(a.bet_log(season=season, limit=limit))
+
+    @m.tool()
+    def get_clv_summary(by: list[str] | None = None) -> list[dict]:
+        """CLV aggregates grouped by close_tier (always) and optionally market. Rows with
+        is_weak_fallback=true come from the all-book median fallback and are reported separately."""
+        return frame_records(a.clv_summary(by=by))
+
+    @m.tool()
+    def get_model_health() -> list[dict]:
+        "Model health rows (pooled, clean and per-fold metrics, stack weights, calibration)."
+        return frame_records(a.model_health())
+
+    @m.tool()
+    def get_fair_prices(game_id: str | None = None) -> list[dict]:
+        "Latest model fair prices (ternary win/push/loss probabilities and fair odds), optionally for one game."
+        return frame_records(a.prices(None if game_id is None else [game_id]))
+
+    @m.tool()
+    def get_overview() -> dict:
+        "Counts, latest capture, quote-store health, share of bets by close tier, and whether demo data is present."
+        return to_jsonable(a.overview())
+
+    @m.resource("nfl://analytics/clv", mime_type="application/json")
+    def analytics_clv() -> str:
+        return json.dumps(frame_records(a.clv_summary()))
+
+    @m.resource("nfl://models/health", mime_type="application/json")
+    def models_health() -> str:
+        return json.dumps(frame_records(a.model_health()))
+
+    @m.resource("nfl://markets/edges", mime_type="application/json")
+    def markets_edges() -> str:
+        return json.dumps(frame_records(a.edges()))
 
     @m.resource("nfl://slate/current", mime_type="application/json")
     def current_slate() -> str:

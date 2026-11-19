@@ -28,7 +28,29 @@ def _sports_leader(season: int | None = None, week: int | None = None):
     return SportsLeaderProvider(season=season, week=week)
 
 
-PROVIDER_FACTORIES = {"sports_leader": _sports_leader}
+def _schedule():
+    """nflverse schedule for mapping odds-feed events to game ids (None if not downloaded)."""
+    try:
+        from nfl_market.data.games import load_games
+
+        return load_games()
+    except FileNotFoundError:
+        return None
+
+
+def _parlay_api(season: int | None = None, week: int | None = None):
+    from nfl_market.integrations.sharp import parlay_api_provider
+
+    return parlay_api_provider(books=(), regions="us", markets=("spreads", "totals", "h2h"), games=_schedule())
+
+
+def _oddslink(season: int | None = None, week: int | None = None):
+    from nfl_market.integrations.sharp import oddslink_provider
+
+    return oddslink_provider(markets=("spreads", "totals"), games=_schedule())
+
+
+PROVIDER_FACTORIES = {"sports_leader": _sports_leader, "parlay_api": _parlay_api, "oddslink": _oddslink}
 
 
 def resolve_providers(names: list[str], **options) -> list:

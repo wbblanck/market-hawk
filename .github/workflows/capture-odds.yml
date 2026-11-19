@@ -1,0 +1,104 @@
+name: Capture odds
+# Budgeted NFL odds capture (docs/data_sources/odds_capture.md).
+# - early: bet-time snapshot of every upcoming game, from GitHub cron (cron can run hours late; fine here).
+# - close: started by an EXTERNAL timer ~60 min before a kickoff slot via the workflow_dispatch API
+#   (GitHub cron was measured 2.7-5.7 h late in nfl_ats); the job waits until kickoff - 25 min per group.
+# Captures are encrypted with CAPTURE_PASSPHRASE and committed to the `market-data` branch. This repo is
+# public and vendor terms do not allow redistributing odds, so plaintext odds are never committed or uploaded.
+on:
+  schedule:
+    - cron: '17 16 * * 2'   # Tue ~11 AM ET: lines after the Monday game
+    - cron: '17 15 * * 4'   # Thu ~10 AM ET
+    - cron: '17 15 * * 6'   # Sat ~10 AM ET
+    - cron: '17 13 * * 0'   # Sun ~8 AM ET
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'early or close'
+        default: 'close'
+      window_minutes:
+        description: 'close: kickoffs starting within this many minutes'
+        default: '75'
+      lead_minutes:
+        description: 'close: capture this many minutes before kickoff (must be > 15)'
+        default: '25'
+      wait:
+        description: 'close: wait until each capture time (true/false)'
+        default: 'true'
+      dry_run:
+        description: 'print the plan and budget, make no request (true/false)'
+        default: 'false'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: capture-odds-${{ github.event.inputs.mode || 'early' }}
+  cancel-in-progress: false
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 200
+    env:
+      PARLAY_API_KEY: ${{ secrets.PARLAY_API_KEY }}
+      ODDSLINK_API_KEY: ${{ secrets.ODDS_LINK }}
+      CAPTURE_PASSPHRASE: ${{ secrets.CAPTURE_PASSPHRASE }}
+      MODE: ${{ github.event.inputs.mode || 'early' }}
+    steps:
+      - name: Require the encryption passphrase before spending any request
+        run: |
+          if [ -z "$CAPTURE_PASSPHRASE" ]; then
+            echo "::error::Add the CAPTURE_PASSPHRASE repository secret (see docs/data_sources/odds_capture.md)."
+            exit 1
+          fi
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.11", cache: pip}
+      - run: pip install -e .
+      - name: nflverse schedule
+        run: python -c "from nfl_market.data.games import download_games; download_games(refresh=True)"
+      - name: Check out the market-data branch
+        run: |
+          git config user.name "market-hawk-capture"
+          git config user.email "market-hawk-capture@users.noreply.github.com"
+          if git fetch --depth 1 origin market-data; then
+            git worktree add store FETCH_HEAD
+            git -C store checkout -B market-data
+          else
+            git worktree add --detach store
+            git -C store checkout --orphan market-data
+            git -C store rm -rf --quiet . || true
+            printf '# Market Hawk captures\n\nEncrypted odds captures (AES-256-CBC, PBKDF2). See docs/data_sources/odds_capture.md on main.\n' > store/README.md
+          fi
+          mkdir -p state store/state
+          cp store/state/usage.jsonl state/usage.jsonl 2>/dev/null || true
+      - name: Capture
+        run: |
+          ARGS="--mode $MODE --out-dir out --usage state/usage.jsonl --db data/capture_run.duckdb"
+          if [ "$MODE" = "close" ]; then
+            ARGS="$ARGS --window-minutes ${{ github.event.inputs.window_minutes || '75' }} --lead-minutes ${{ github.event.inputs.lead_minutes || '25' }}"
+            [ "${{ github.event.inputs.wait }}" = "true" ] && ARGS="$ARGS --wait"
+          fi
+          [ "${{ github.event.inputs.dry_run }}" = "true" ] && ARGS="$ARGS --dry-run"
+          python scripts/capture_odds.py $ARGS
+      - name: Encrypt and commit to market-data
+        if: always()
+        run: |
+          shopt -s globstar nullglob
+          for f in out/**/*.jsonl.gz; do
+            dest="store/captures/${f#out/}.enc"
+            mkdir -p "$(dirname "$dest")"
+            openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -salt -in "$f" -out "$dest" -pass env:CAPTURE_PASSPHRASE
+          done
+          rm -rf out data/capture_run.duckdb*
+          cp state/usage.jsonl store/state/usage.jsonl 2>/dev/null || true
+          cd store
+          git add -A README.md captures state 2>/dev/null || git add -A
+          git commit -m "capture: $MODE $(date -u +%Y-%m-%dT%H:%MZ)" || exit 0
+          for i in 1 2 3 4; do
+            if git pull --rebase origin market-data 2>/dev/null || true; git push origin HEAD:market-data; then exit 0; fi
+            git rebase --abort 2>/dev/null || true
+            sleep $((i*5))
+          done
+          exit 1

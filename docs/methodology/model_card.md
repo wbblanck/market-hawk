@@ -83,3 +83,42 @@ code commit; environment lock; commands; artifact paths and checksums
 ## Note on sports_ds
 
 The reference repo's optional `sports_ds` toolkit has NFL pipelines (`src/sports_ds/pipelines/nfl_elo_baseline.py`, `nfl_margin_model.py`, `nfl_win_model.py`) that could serve as an external benchmark row on a card later (`predictive_modeling.md` Section 6). It is not a dependency and its results do not substitute for our own validation.
+
+## Model card: stack_v1 v1
+
+Status: **experimental** (promotion items 1, 5 and 6 missing: decision `follow-up`, leakage audit unsigned, no
+holdout score). Evidence: `docs/results/step4_stacking.md`, experiment `20261119-step4-stacking-01`. Regenerate with
+`python scripts/run_stacking.py`.
+
+- **Intended use:** a blended pre-game home margin, total and P(home win) for fair pricing (`markets.pricing`) and
+  the dashboard. Research and paper tracking only. It does not place wagers.
+- **Target and output:** `PREDICTION_COLUMNS`, model id `stack_v1`, T = kickoff - 24h. `pred_margin` = simplex blend of
+  elo_v1, kalman_gs_v1, ridge_v1, xgb_v1. `pred_total` = blend of elo_v1, ridge_v1, xgb_v1 (Kalman has no total).
+  `pred_home_win_prob` = P(home win | no tie) from a K1 margin pmf at the stacked margin. SDs are NaN.
+- **Data window:** component OOF predictions for 2015-2024 (step 3). The walk-forward evaluation scores 2018-2024. The
+  forward weights and K1 are fit on all 2015-2024 OOF rows. 2025 is the holdout: refused in every function and in
+  `StackModel.fit`/`predict`.
+- **Validation:** weights fit per test season on earlier seasons' rows before its first T, with at least 3 seasons.
+  Squared-error objective, no intercept. Equal weights and an MAE objective are reported baselines/variants.
+- **Baselines beaten** (pooled 2018-2024, 1,942 games, paired game bootstrap B = 2000):
+
+| baseline | metric | stack_v1 minus baseline [95% CI] | folds won | verdict |
+|---|---|---|---|---|
+| elo_v1 | margin MAE | -0.009 [-0.074, +0.056] | 3/7 | no difference shown |
+| kalman_gs_v1 (best single) | margin MAE | +0.020 [-0.020, +0.057] | 4/7 | no difference shown |
+| elo_v1 | total MAE | -0.250 [-0.354, -0.136] | 7/7 | beats |
+| xgb_v1 (best single) | total MAE | -0.015 [-0.055, +0.024] | 4/7 | no difference shown |
+| elo_v1 | home-win log loss | +0.000 [-0.004, +0.005] | 3/7 | no difference shown |
+
+- **Calibration:** usable-with-caveats. P(home win) ECE 0.030 over 10 bins (elo_v1 0.016). The K1 PIT mean is 0.492
+  and 50/80/95 coverage is 0.535/0.808/0.951. The 2019 PIT mean is 0.450. The cover log loss at the nflverse line is
+  0.713. That line's capture time is unknown, so this figure is context only.
+- **Forward weights** (`config/models/stack_v1_weights.json`): margin elo 0.081, kalman_gs 0.432, ridge 0.201,
+  xgb 0.286. Total ridge 0.540, xgb 0.460, elo 0.000.
+- **Known failure modes:** the components are highly correlated, so the weights move between near-equivalent models
+  from season to season. The weights are refit once per season, so drift within a season is not tracked. The stack
+  inherits every component's gaps: no QB or EPA features, and the V5 caveat on 2016-2021.
+- **Leakage audit:** not signed. Author checks are in `tests/test_stacking.py`: future perturbation, late labels and
+  holdout refusal.
+- **Monitoring / kill:** retire if it loses to elo_v1 on margin MAE in two consecutive review windows, each at least
+  one season. Retire if its forward CLV (captured closes only) is worse than elo_v1's over at least 200 paper bets.
