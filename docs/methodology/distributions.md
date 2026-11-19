@@ -83,6 +83,33 @@ Intentional or explained differences (each one asserted at its documented size, 
 - The gamma frailty can only produce positive `corr(home, away)`. The P5 diagnostics show whether the data need more than that.
 - NB points ignore the 3/7 lumpiness of scoring. On a crude smoke predictor it gave P(abs M = 3) of 5% against 15% observed, and it was too wide.
 
-## 7. Results on real OOF predictions (pending)
+## 7. Results on real OOF predictions
 
-_Placeholder for the lead: run `python -m nfl_market.distributions.evaluate --predictions data/processed/step3_oof_predictions.parquet --out docs/results/step3_distributions.md` and summarise here: log score by family, PIT/coverage, key-number table vs nfl_ats, push calibration, P5 diagnostics, verdict (`calibration_check.md` Section 5)._
+Full tables: `docs/results/step3_distributions.md`. Margin on `elo_v1`, total on `ridge_v1`; parameters fit on earlier seasons only; scored seasons 2018-2024, 1,942 games; lower log score is better.
+
+| Margin family | Log score | 80% coverage | P(abs M = 3) pred / obs | P(M = 0) pred / obs |
+|---|---|---|---|---|
+| normal | 4.002 | 0.807 | 0.055 / 0.146 | 0.028 / 0.004 |
+| t | 4.000 | 0.797 | 0.057 / 0.146 | 0.029 / 0.004 |
+| empirical residuals | 4.074 | 0.797 | | 0.030 / 0.004 |
+| kernel (nfl_ats) | 4.298 | 0.796 | | 0.004 / 0.004 |
+| keynum (nfl_ats) | 3.882 | 0.802 | | 0.004 / 0.004 |
+| t + key-number adjustment | 3.900 | 0.786 | 0.138 / 0.146 | 0.003 / 0.004 |
+| **K1 (nfl-betting-model), refit in-fold** | **3.881** | 0.809 | 0.148 / 0.146 | 0.004 / 0.004 |
+| K1 frozen constants (2016-2020 in-sample) | 3.865 | 0.813 | | 0.005 / 0.004 |
+| D2 TD/FG (frozen) | 4.012 | 0.889 | | 0.030 / 0.004 |
+| S1 shared-TD (frozen) | 3.976 | 0.850 | | 0.035 / 0.004 |
+
+| Total family (ridge_v1) | Log score | 80% coverage |
+|---|---|---|
+| normal | 4.031 | 0.831 |
+| t | 4.031 | 0.825 |
+| empirical residuals | 4.101 | 0.830 |
+
+Findings:
+- Continuous families (normal, t, plain residuals) put about 5.5% on a 3-point margin against 14.6% observed, and about 2.8% on ties against 0.4%. They misprice every spread at or near 3 and 7.
+- K1 matches the key numbers (3: 14.8% vs 14.6%; 7: 9.3% vs 8.4%; ties 0.36% vs 0.36%) and has the best clean log score, about 0.12 nats per game better than normal. This agrees with Will's batch 5 result (K1 beat NB by +0.143 on 2022-2025).
+- The kernel estimator is poor here (4.30) because its first scored season has only three seasons of OOF history (2018: 5.31); it recovers in later seasons. It needs a longer history than this walk-forward gives it.
+- D2 and S1 are too wide (80% coverage 0.85-0.89) and under-weight key numbers, as in Will's reports.
+- Totals: normal and t are equivalent; no key-number structure to exploit there in this test.
+- **Recommended step-3 default:** K1 refit in-fold for margin, t for total. Verdict (calibration_check.md Section 5): `usable-with-caveats` (2019 and 2023 PIT means drift with the season's home-field level; push calibration against real market lines needs captured closes).
