@@ -37,12 +37,19 @@ from . import calibration as cal
 from .margin import (DEFAULT_MARGIN_KEYS, MARGIN_SUPPORT, KernelLocalEmpirical, KeyNumberWeights, ResidualPool,
                      TotalScaledPool, TParams, apply_key_weights_matrix, choose_kernel_h, fit_key_weights,
                      fit_keynum, fit_student_t, stack_pmfs, t_pmf_matrix)
+from . import scoring_models as SM
+from .pmf import JointPMF
 from .team_points import NBParams, fit_nb_team_points, nb_joint_pmf, team_means
 from .totals import TOTAL_SUPPORT, total_pmf_empirical
 
 #: Distribution families. ``+key`` (margins only) adds the in-fold key-number adjustment.
-FAMILIES = ("empirical", "t", "normal", "kernel", "kernel_sym", "keynum", "shifted_total", "nb")
-_MARGIN_ONLY = {"kernel_sym", "keynum", "shifted_total"}
+FAMILIES = ("empirical", "t", "normal", "kernel", "kernel_sym", "keynum", "shifted_total", "nb",
+            "k1", "k1_frozen", "s1", "d2")
+_MARGIN_ONLY = {"kernel_sym", "keynum", "shifted_total", "k1", "k1_frozen"}
+#: Families that need pred_total (team-level models).
+_NEEDS_TOTAL = {"nb", "shifted_total", "s1", "d2"}
+#: Families whose parameters are frozen constants fit on 2016-2020 in nfl-betting-model (in-sample there).
+FROZEN_FAMILIES = {"k1_frozen", "s1", "d2"}
 
 
 def parse_family(family: str) -> tuple[str, bool]:
@@ -77,6 +84,7 @@ class FittedDistribution:
     nb_params: NBParams | None = None
     kernel: KernelLocalEmpirical | None = None
     total_scaled: TotalScaledPool | None = None
+    k1_params: SM.K1Params | None = None
     key_weights: KeyNumberWeights | None = None
     key_preserve_moments: bool = True
     condition_on_bucket: bool = False
@@ -98,6 +106,10 @@ class FittedDistribution:
                        ts_sigma=self.total_scaled.sigma)
         if self.nb_params is not None:
             row.update(nb_r=self.nb_params.r, nb_theta=self.nb_params.theta)
+        if self.k1_params is not None:
+            row.update(k1_sigma=self.k1_params.sigma, k1_w3=self.k1_params.w[3], k1_w7=self.k1_params.w[7])
+        if self.family in FROZEN_FAMILIES:
+            row["frozen_constants_fit"] = "2016-2020 (nfl-betting-model)"
         if self.key_weights is not None:
             for k, w in zip(self.key_weights.keys, self.key_weights.weights["all"]):
                 if k in (0, 3, 4, 6, 7, 10, 14):
@@ -123,6 +135,16 @@ def _base_pmfs(fd: FittedDistribution, frame: pd.DataFrame) -> tuple[int, np.nda
         return lo, mat
     if fd.family in ("kernel", "kernel_sym"):
         return fd.kernel.pmf_matrix(pred)
+    if fd.family in ("k1", "k1_frozen"):
+        p = fd.k1_params
+        return int(SM.K1_M[0]), SM.k1_matrix(pred, p.sigma, p.w)
+    if fd.family in ("s1", "d2"):
+        d, L = SM.tdfg_inputs(frame["pred_margin"].to_numpy(float), frame["pred_total"].to_numpy(float))
+        if fd.family == "d2":
+            joints = [SM.d2_joint(di, li) for di, li in zip(d, L)]
+        else:
+            joints = [JointPMF(J) for J in SM.s1_joint_matrices(d, L)]
+        return stack_pmfs([j.margin() if fd.target == "margin" else j.total() for j in joints])
     if fd.family == "shifted_total":
         return stack_pmfs([fd.total_scaled.pmf(m, t) for m, t in zip(pred, frame["pred_total"].to_numpy(float))])
     mh, ma = team_means(frame["pred_margin"], frame["pred_total"])
@@ -156,7 +178,7 @@ def fit_distribution(train: pd.DataFrame, family: str = "t", *, target: str = "m
         raise ValueError(f"family {family!r} is implemented for margins only")
     train = with_outcomes(train)
     pred_col = f"pred_{target}"
-    need = [pred_col, target] + (["pred_margin", "pred_total"] if base in ("nb", "shifted_total") else [])
+    need = [pred_col, target] + (["pred_margin", "pred_total"] if base in _NEEDS_TOTAL else [])
     train = train.dropna(subset=list(dict.fromkeys(need)))
     if train.empty:
         raise ValueError("no usable training rows")
@@ -179,6 +201,12 @@ def fit_distribution(train: pd.DataFrame, family: str = "t", *, target: str = "m
     elif base == "keynum":
         fd.t_params, fd.key_weights = fit_keynum(pred, y)
         fd.key_preserve_moments = False
+    elif base == "k1":
+        fd.k1_params = SM.fit_k1(pred, y)
+    elif base == "k1_frozen":
+        fd.k1_params = SM.K1_FROZEN
+    elif base in ("s1", "d2"):
+        pass  # frozen constants (SM.D2_CONSTANTS, SM.S1_C0)
     elif base == "shifted_total":
         fd.total_scaled = TotalScaledPool.fit(pred, y, train["pred_total"].to_numpy(float))
     else:
@@ -244,7 +272,7 @@ def evaluate_distributions(predictions_with_outcomes: pd.DataFrame, family: str 
             if tr["season"].nunique() < min_history_seasons:
                 continue
             te = mdf[mdf["season"] == s]
-            if target == "total" or parse_family(family)[0] in ("nb", "shifted_total"):
+            if target == "total" or parse_family(family)[0] in _NEEDS_TOTAL:
                 te = te.dropna(subset=["pred_total"])
             if te.empty:
                 continue
@@ -329,7 +357,7 @@ def render_markdown(results: dict[str, dict[str, pd.DataFrame]], source: str) ->
     parts = ["# Step 3 outcome distributions (walk-forward, auto-generated)\n",
              f"Source predictions: `{source}`. Generated by `python -m nfl_market.distributions.evaluate`. "
              "Parameters for each test season are fit only on earlier seasons' OOF rows; the 2025 holdout "
-             "and the 2026 forward season are excluded. Reference lines are the model's own implied lines "
+             "and the 2026 forward season are excluded. Families k1_frozen, s1 and d2 use constants fit on 2016-2020 outcomes in nfl-betting-model, so their 2016-2020 scores are in-sample. Reference lines are the model's own implied lines "
              "unless a market line column was supplied.\n"]
     for name, sections in [("Summary (log score, PIT, coverage)", "summary"), ("Fitted parameters", "params"),
                            ("Key numbers", "key_numbers"), ("Binary markets", "binary"),
@@ -347,7 +375,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--predictions", required=True, help="parquet/csv with PREDICTION_COLUMNS + home_score/away_score")
     ap.add_argument("--out", required=True, help="markdown output path")
-    ap.add_argument("--families", default="empirical,empirical+key,t,t+key,kernel,kernel_sym,keynum,shifted_total,nb",
+    ap.add_argument("--families", default="empirical,empirical+key,t,t+key,kernel,kernel_sym,keynum,shifted_total,nb,k1,k1_frozen,s1,d2",
                     help="comma list of families (empirical, t, nb, each optionally +key)")
     ap.add_argument("--targets", default="margin,total")
     ap.add_argument("--min-history-seasons", type=int, default=3)
@@ -363,11 +391,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     results = {}
     for target in args.targets.split(","):
         for fam in args.families.split(","):
-            if target == "total" and ("+key" in fam or fam.split("+")[0] in ("kernel_sym", "keynum", "shifted_total")):
+            if target == "total" and ("+key" in fam or fam.split("+")[0] in _MARGIN_ONLY):
                 continue
             if target == "total" and frame["pred_total"].isna().all():
                 continue
-            if fam.split("+")[0] in ("nb", "shifted_total") and frame["pred_total"].isna().all():
+            if fam.split("+")[0] in _NEEDS_TOTAL and frame["pred_total"].isna().all():
                 continue
             results[f"{target} / {fam}"] = evaluate_distributions(
                 frame, fam, target=target, min_history_seasons=args.min_history_seasons,

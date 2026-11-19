@@ -179,6 +179,18 @@ class ResidualPool:
             self._cache[key] = IntPMF(lo, p)
         return self._cache[key]
 
+    def sf_continuous(self, t, mean) -> np.ndarray:
+        """``P(mean + r > t)`` over the raw (continuous) residuals: the nfl_ats ``shifted`` survival function.
+
+        :meth:`pmf` instead splits each shifted residual between neighbouring
+        integers. For a half-point ``t`` that equals the average of this function
+        over ``[t - 0.5, t + 0.5]``, and it equals this function exactly when
+        ``mean + r`` is an integer.
+        """
+        r = np.sort(self.residuals)
+        x = np.atleast_1d(np.asarray(t, float) - np.asarray(mean, float))
+        return 1 - np.searchsorted(r, x, side="right") / r.size
+
     def pmf(self, mean: float, *, condition_on_bucket: bool = False, min_value: int | None = None) -> IntPMF:
         """pmf of ``mean + residual`` on the integers (linear split, mean preserved up to ``resolution``)."""
         if not np.isfinite(mean):
@@ -459,11 +471,13 @@ def margin_pmf(mean: float, *, family: str = "t", pool: ResidualPool | None = No
 
 
 # ---------------------------------------------------- vectorised builders
-def t_pmf_matrix(means, params: TParams, *, sds=None,
-                 support: tuple[int, int] = MARGIN_SUPPORT) -> tuple[int, np.ndarray]:
+def t_pmf_matrix(means, params: TParams, *, sds=None, support: tuple[int, int] = MARGIN_SUPPORT,
+                 fold_tails: bool = True) -> tuple[int, np.ndarray]:
     """Discretised t pmfs for many means at once (same result as :func:`t_pmf` row by row).
 
-    ``params.df = inf`` gives the discretised normal.
+    ``params.df = inf`` gives the discretised normal. ``fold_tails=False`` drops the
+    mass beyond the support and renormalises instead of adding it to the end
+    points (this is what nfl_ats ``keynum`` does).
     """
     mu = np.asarray(means, dtype=float)
     scale = np.full(mu.shape, params.scale)
@@ -477,8 +491,9 @@ def t_pmf_matrix(means, params: TParams, *, sds=None,
     z = (edges[None, :] - (mu[:, None] + params.loc)) / scale[:, None]
     c = stats.norm.cdf(z) if not np.isfinite(params.df) else stats.t.cdf(z, df=params.df)
     p = np.diff(c, axis=1)
-    p[:, 0] += c[:, 0]
-    p[:, -1] += 1 - c[:, -1]
+    if fold_tails:
+        p[:, 0] += c[:, 0]
+        p[:, -1] += 1 - c[:, -1]
     p = np.clip(p, 0, None)
     return lo, p / p.sum(axis=1, keepdims=True)
 
@@ -585,7 +600,7 @@ def choose_kernel_h(pred, margin, season, *, mirrored: bool = False,
     return float(best)
 
 
-def fit_keynum(pred, margin, *, sigma: float | None = None) -> tuple[TParams, KeyNumberWeights]:
+def fit_keynum(pred, margin, *, sigma: float | None = None, fold_tails: bool = True) -> tuple[TParams, KeyNumberWeights]:
     """nfl_ats ``keynum``: discretised normal (sd of training residuals) times weights ``w_|k|``.
 
     ``w_|k| = observed count of |m| = |k| / expected count under the base``, for
@@ -595,7 +610,7 @@ def fit_keynum(pred, margin, *, sigma: float | None = None) -> tuple[TParams, Ke
     pred, margin = np.asarray(pred, float), np.round(np.asarray(margin, float))
     sd = float(np.std(margin - pred)) if sigma is None else float(sigma)
     params = TParams(scale=sd, df=np.inf)
-    lo, mat = t_pmf_matrix(pred, params)
+    lo, mat = t_pmf_matrix(pred, params, fold_tails=fold_tails)
     kw = fit_key_weights((lo, mat), margin, keys=KEYNUM_KEYS, smoothing=0.0, n_iter=1, bounds=(0.0, np.inf))
     return params, kw
 

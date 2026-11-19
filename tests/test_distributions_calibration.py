@@ -149,7 +149,7 @@ def test_synthetic_frame_satisfies_contract():
     assert all(c in df.columns for c in PREDICTION_COLUMNS)
 
 
-@pytest.mark.parametrize("family", ["t+key", "empirical", "kernel_sym", "keynum"])
+@pytest.mark.parametrize("family", ["t+key", "empirical", "kernel_sym", "keynum", "k1"])
 def test_evaluate_uses_no_rows_from_scored_season(family):
     df = synthetic_oof()
     base = evaluate_distributions(df, family, min_history_seasons=2)
@@ -199,3 +199,12 @@ def test_cli_writes_markdown(tmp_path):
                  "--targets", "margin", "--min-history-seasons", "2"]) == 0
     text = out.read_text()
     assert "Key numbers" in text and "margin / kernel" in text
+
+
+@pytest.mark.parametrize("family", ["k1_frozen", "s1", "d2"])
+def test_frozen_score_models_run_in_evaluate(family):
+    df = synthetic_oof(seasons=(2016, 2017, 2018, 2019), n=60)
+    r = evaluate_distributions(df, family, min_history_seasons=2)
+    assert set(r["summary"]["season"]) == {2018, 2019, "all"}
+    assert (r["params"]["frozen_constants_fit"] == "2016-2020 (nfl-betting-model)").all()
+    assert r["summary"]["log_score"].notna().all()
