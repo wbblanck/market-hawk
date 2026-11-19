@@ -48,8 +48,8 @@ A tier-2 attempt with only one sharp book falls to tier 3 (the lone sharp book i
 | Tier order and books | Pinnacle; Circa + BookMaker; all books | **locked** (Will) | `config.default_tiers` |
 | Tier-2 minimum books | 2 | **locked** (Will) | `close_sharp_min_books` |
 | Main-line rule | `book_primary_else_most_balanced` | **locked** (Will) | `close_main_line_rule` |
-| `MAX_CLOSE_AGE` | 120 min | **proposed, needs Will's confirmation** | `close_max_age_minutes` |
-| Tier-3 minimum book count (`FEW_BOOKS` below) | 3 (Will's `nfl_ats` uses 5) | **proposed, needs Will's confirmation** | `close_fallback_min_books` |
+| `MAX_CLOSE_AGE` | 120 min | locked (Will, 2026-11-19) | `close_max_age_minutes` |
+| Tier-3 minimum book count (`FEW_BOOKS` below) | 5 (same as `nfl_ats`) | locked (Will, 2026-11-19) | `close_fallback_min_books` |
 
 The policy lives in `src/nfl_market/config.py` (`ClosePolicy`, `Settings.close_policy()`); every close row carries `policy_fingerprint` so a charter can pin the exact policy. Changing any value after CLV results exist opens a new experiment id (rule L1). Enforcement: `src/nfl_market/markets/closing.py` (`select_main_line`, `select_close`, `close_table`), tested in `tests/test_closing.py` and `tests/test_config_close.py`. Where the Pinnacle, Circa and BookMaker quotes can come from: `docs/data_sources/sharp_feeds.md`.
 

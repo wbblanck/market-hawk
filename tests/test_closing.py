@@ -96,16 +96,16 @@ def test_tier2_with_one_sharp_book_falls_to_tier3_with_flags():
     assert r.close_line == -3.25
     assert r.books_used == ("circa", "draftkings")
     assert FLAG_MARKET_MEDIAN_FALLBACK in r.flags
-    assert FLAG_FEW_BOOKS in r.flags  # 2 books < proposed minimum of 3
+    assert FLAG_FEW_BOOKS in r.flags  # 2 books < locked minimum of 5
     assert "sharp_median: 1 of 2 required books (bookmaker=no_quote_before_cutoff)" in r.fallback_reason
 
 
 def test_tier3_enough_books_no_few_books_flag():
-    q = frame(*(spread_pair(b, -3, -110, -110, at(20)) for b in ("DraftKings", "FanDuel", "BetMGM")))
+    q = frame(*(spread_pair(b, -3, -110, -110, at(20)) for b in ("DraftKings", "FanDuel", "BetMGM", "Caesars", "BetRivers")))
     r = close(q)
     assert r.close_tier == "all_book_median"
     assert r.flags == (FLAG_MARKET_MEDIAN_FALLBACK,)
-    assert r.n_books == 3
+    assert r.n_books == 5
 
 
 def test_missing_close_stays_missing():

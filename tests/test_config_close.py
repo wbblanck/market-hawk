@@ -12,7 +12,7 @@ from nfl_market.config import (
 from nfl_market.holdout import DEFAULT_MANIFEST
 
 
-def test_locked_and_proposed_defaults(monkeypatch):
+def test_locked_defaults(monkeypatch):
     for var in ("NFLMI_CLOSE_CUTOFF_MINUTES", "NFLMI_CLOSE_MAX_AGE_MINUTES", "NFLMI_CLOSE_SHARP_MIN_BOOKS",
                 "NFLMI_CLOSE_FALLBACK_MIN_BOOKS", "NFLMI_CLOSE_MAIN_LINE_RULE", "NFLMI_HOLDOUT_MANIFEST_PATH"):
         monkeypatch.delenv(var, raising=False)
@@ -21,7 +21,7 @@ def test_locked_and_proposed_defaults(monkeypatch):
     p = s.close_policy()
     assert p.cutoff_minutes == 15
     assert p.max_close_age_minutes == 120
-    assert p.fallback_min_books == 3
+    assert p.fallback_min_books == 5
     assert p.main_line_rule == MAIN_LINE_RULE == "book_primary_else_most_balanced"
     assert [t.name for t in p.tiers] == [TIER_PINNACLE, TIER_SHARP_MEDIAN, TIER_ALL_BOOK_MEDIAN]
     assert p.tier(TIER_PINNACLE).books == ("pinnacle",)

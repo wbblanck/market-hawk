@@ -2,7 +2,7 @@
 
 Close policy values marked LOCKED were decided by Will (owner) and must not be changed
 without opening a new experiment id (``docs/methodology/closing_line.md`` rule L1).
-Values marked PROPOSED are defaults chosen during step 3 and still need Will's confirmation.
+All close values are LOCKED: MAX_CLOSE_AGE and the tier-3 minimum were confirmed by Will on 2026-11-19.
 """
 from __future__ import annotations
 
@@ -27,9 +27,9 @@ MAIN_LINE_RULE = "book_primary_else_most_balanced"
 MAIN_LINE_RULES = frozenset({MAIN_LINE_RULE})
 
 LOCKED_CLOSE_CUTOFF_MINUTES = 15          # LOCKED: close = last quote <= kickoff - 15 min
-PROPOSED_MAX_CLOSE_AGE_MINUTES = 120      # PROPOSED, needs Will's confirmation
+MAX_CLOSE_AGE_MINUTES = 120               # LOCKED (Will, 2026-11-19)
 LOCKED_SHARP_MIN_BOOKS = 2                # LOCKED: tier 2 needs Circa and BookMaker both
-PROPOSED_FALLBACK_MIN_BOOKS = 3           # PROPOSED, needs Will's confirmation (FEW_BOOKS below it)
+FALLBACK_MIN_BOOKS = 5                    # LOCKED (Will, 2026-11-19; matches nfl_ats); FEW_BOOKS below it
 
 
 @dataclass(frozen=True)
@@ -72,8 +72,8 @@ class ClosePolicy:
     """Preregistered definition of "the close" (closing_line.md Section 2)."""
 
     cutoff_minutes: int = LOCKED_CLOSE_CUTOFF_MINUTES
-    max_close_age_minutes: int = PROPOSED_MAX_CLOSE_AGE_MINUTES
-    fallback_min_books: int = PROPOSED_FALLBACK_MIN_BOOKS
+    max_close_age_minutes: int = MAX_CLOSE_AGE_MINUTES
+    fallback_min_books: int = FALLBACK_MIN_BOOKS
     main_line_rule: str = MAIN_LINE_RULE
     tiers: tuple[CloseTier, ...] = field(default_factory=default_tiers)
 
@@ -113,9 +113,9 @@ class Settings(BaseSettings):
 
     # Close policy. Changing any of these after CLV results exist opens a new experiment id.
     close_cutoff_minutes: int = Field(LOCKED_CLOSE_CUTOFF_MINUTES, ge=0)          # LOCKED
-    close_max_age_minutes: int = Field(PROPOSED_MAX_CLOSE_AGE_MINUTES, gt=0)      # PROPOSED
+    close_max_age_minutes: int = Field(MAX_CLOSE_AGE_MINUTES, gt=0)      # LOCKED
     close_sharp_min_books: int = Field(LOCKED_SHARP_MIN_BOOKS, ge=1)              # LOCKED
-    close_fallback_min_books: int = Field(PROPOSED_FALLBACK_MIN_BOOKS, ge=1)      # PROPOSED
+    close_fallback_min_books: int = Field(FALLBACK_MIN_BOOKS, ge=1)      # LOCKED
     close_main_line_rule: str = MAIN_LINE_RULE                                    # LOCKED
 
     # Locked final holdout manifest (validation_design.md Section 5).

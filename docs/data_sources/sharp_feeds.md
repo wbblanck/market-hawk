@@ -4,7 +4,7 @@ Where Market Hawk can legally get the quotes behind the locked close tiers (`doc
 
 ## What the close needs from a feed
 
-- A quote at or before `kickoff - 15 min`, no more than `MAX_CLOSE_AGE` old (proposed: 120 min). Live quotes or snapshots every 5 minutes or less easily meet this.
+- A quote at or before `kickoff - 15 min`, no more than `MAX_CLOSE_AGE` old (locked: 120 min). Live quotes or snapshots every 5 minutes or less easily meet this.
 - Timestamped snapshots, or full line history, so that *we* can pick the last quote before the cutoff. A vendor's own "closing odds" field uses the vendor's definition of the close, usually the last price before start. It does **not** meet our 15-minute cutoff and must not be stored as our close (rules L1/L6).
 - Both sides at the same line, so we can devig (price close) and test balance (main-line rule).
 - Terms that allow storing the data and using it internally for analysis and model training.
@@ -23,7 +23,7 @@ Evidence comes from read-only clones of `wbblanck/nfl_ats` and `wbblanck/nfl-bet
 | **SBRO archive** 2007-08 to 2021-22 (`nfl-betting-model/data/odds/README.md`) | none (public pages) | **book unknown** | - | open and close spread and total per game; no timestamps | - | public archive, no longer updated | **Not a close under our policy.** No book, no capture time, no 15-min cutoff. Use only as a notional covariate, labelled as such. |
 | **AusSportsBetting** `nfl.xlsx` (`nfl-betting-model/data/odds/asb/README.md`) | none (manual download) | Pinnacle 2014 to Feb 2018, then bet365, then betr | - | open and close; no timestamps | - | **personal use only; do not make this data available on another website** | **Must never enter Market Hawk.** Market Hawk is a public repo: no file, rows, derived values or artifacts. Not a close under our policy either. |
 
-**Precedent for the tier rule.** `nfl_ats` (`CLAUDE.md`, `src/engine/picks/final.py`) uses: Pinnacle from the pick-time capture, one retry 60 s later, then Pinnacle from OddsPapi (`MARKET_ODDSPAPI`), then from OddsLink (`MARKET_ODDSLINK`), then the all-book median flagged `MARKET_MEDIAN_FALLBACK`. `FEW_BOOKS` marks any pick with **fewer than 5 books** (`MIN_BOOKS = 5`). Our locked tiers keep that structure, insert the Circa + BookMaker median as tier 2, and use a *proposed* tier-3 minimum of **3**. Will should confirm 3 or align with his 5. With ParlayAPI's ~14 books, 5 is easy to meet; with sharp-only feeds it is not.
+**Precedent for the tier rule.** `nfl_ats` (`CLAUDE.md`, `src/engine/picks/final.py`) uses: Pinnacle from the pick-time capture, one retry 60 s later, then Pinnacle from OddsPapi (`MARKET_ODDSPAPI`), then from OddsLink (`MARKET_ODDSLINK`), then the all-book median flagged `MARKET_MEDIAN_FALLBACK`. `FEW_BOOKS` marks any pick with **fewer than 5 books** (`MIN_BOOKS = 5`). Our locked tiers keep that structure, insert the Circa + BookMaker median as tier 2, and use the same tier-3 minimum of **5** (confirmed by Will 2026-11-19). With ParlayAPI's ~14 books, 5 is easy to meet; with sharp-only feeds it is not.
 
 **Reuse recommendation.** Reuse the held keys through Market Hawk provider adapters, with keys only in env or CI secrets and never in code:
 - **ParlayAPI**: done. `nfl_market.integrations.sharp.parlay_api_provider()` reads `NFLMI_PARLAY_API_KEY`, else his existing `PARLAY_API_KEY`. `books=("pinnacle",)` for tier 1, `books=()` for all books (tier 3). Not yet registered with the collector.
@@ -62,7 +62,7 @@ Evidence comes from read-only clones of `wbblanck/nfl_ats` and `wbblanck/nfl-bet
 
 - **Vendor historical snapshots as closes.** Rule L2/L6 says the close is chosen by *our* `captured_at_utc` and that snapshots are never backfilled. A vendor's historical snapshot is a capture by a third party at a known time. Do we accept it with `captured_at_utc` = vendor snapshot time and a distinct `source` label (for example `the_odds_api_historical`), reported separately from our own live captures? This needs a decision before any backfill.
 - Which paid feed, if any, to buy for tier 2, and whether to buy The Odds API history for 2020-2025. Also whether to email Pinnacle.
-- Tier-3 minimum book count: our proposed 3, or 5 as in `nfl_ats`.
+- Decided 2026-11-19: MAX_CLOSE_AGE 120 min, tier-3 minimum 5 books, and no paid historical feed for now (CLV history starts from our own captures).
 - The book's main-line flag is the first branch of our locked rule, but OddsLink flagged a junk Circa line once. Should a flagged line with hold above some bound (`nfl_ats`/kmodel drop quotes with hold > 10%) be ignored? This would be a guard, not a change of rule; it needs Will's call.
 - ParlayAPI, OddsLink, OddsPapi and PinnRadar terms of use are all unverified. Will should confirm that automated polling and internal storage are allowed before Market Hawk collects from them. Market Hawk is public: stored quotes go to the DuckDB file, never the repo.
 - Should exchange or prediction-market venues (Novig, Kalshi, ProphetX) count as books in the tier-3 median?
