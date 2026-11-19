@@ -8,7 +8,7 @@ Defines which snapshot is "the close" and how CLV is computed. Builds on `docs/D
 |---|---|
 | L1 | The close is defined by a **preregistered cutoff** relative to `kickoff_utc`, fixed before any CLV result is computed and recorded in config and in each experiment's charter. Changing it opens a new experiment id. |
 | L2 | The close is selected by **`captured_at_utc`** (our capture time). `source_timestamp_utc` is retained for provenance only. |
-| L3 | **Pinnacle** is the benchmark book. A **consensus fallback** is allowed only when explicitly labelled; it is never silently substituted. |
+| L3 | **Pinnacle** is the benchmark book. Fallback tiers (sharp median, then all-book median) are allowed only when explicitly labelled per row; they are never silently substituted. |
 | L4 | **Missing close stays missing.** No zero, no carry-back from a later quote, no substitution from another market or line. The row is excluded from CLV metrics and counted. |
 | L5 | **Line CLV and price CLV are separate quantities**, stored and reported side by side, never summed. |
 | L6 | Market snapshots are timestamped at capture and never backfilled. Provider statistics (aggregated historical lines, nflverse `spread_line`/`total_line`) are not historical quotes and never act as our close. |
@@ -16,19 +16,42 @@ Defines which snapshot is "the close" and how CLV is computed. Builds on `docs/D
 ## 2. Close snapshot definition
 
 ```text
-cutoff_utc     = kickoff_utc - CLOSE_CUTOFF            (preregistered; see open decision below)
+cutoff_utc     = kickoff_utc - CLOSE_CUTOFF            (CLOSE_CUTOFF = 15 min, locked)
 close quote    = last quote with captured_at_utc <= cutoff_utc
-                 and captured_at_utc >= cutoff_utc - MAX_CLOSE_AGE  (else: missing, reason "stale")
+                 and captured_at_utc >= cutoff_utc - MAX_CLOSE_AGE  (else: not qualifying, reason "stale")
                  and is_live = false and synthetic = false
-                 for book = Pinnacle, same event_id, market, selection
-kickoff_utc    = the kickoff known at capture; if the game is rescheduled, the close is re-derived from the new kickoff and the change is flagged
+                 same event_id, market, selection; per book, then tiered (table below)
+kickoff_utc    = the kickoff known at capture; if the game is rescheduled, the close is re-derived from the new kickoff and the change is flagged (KICKOFF_CHANGED)
 ```
 
-- **Price close** requires an **exact-contract match**: same event, market, selection and exact line as the bet (`docs/DATA_CONTRACTS.md`: -2.5 and -3 are different contracts; contract key in `src/nfl_market/markets/contracts.py`).
-- **Line close** is the benchmark's closing line for the same event, market and selection. When the book shows several lines (alternates), the main line is the one the book flags as primary, else the line with the two sides' prices closest to even; the rule used is stored per row.
-- **Fallback**: if Pinnacle has no qualifying close, a consensus close = median line (and median devigged price on the exact contract) across books with a qualifying close quote. Stored with `close_source = consensus_median`, flags `MARKET_MEDIAN_FALLBACK` and, below the preregistered minimum book count, `FEW_BOOKS` (flag names from `docs/EXISTING_MODELS.md`), plus quote age and fallback reason (`docs/DATA_CONTRACTS.md`). Results are reported Pinnacle-only and Pinnacle+fallback separately.
+- A book's **close snapshot** is all of its rows for the event and market captured at the latest `captured_at_utc <= cutoff_utc` at which it quoted the selection. Quotes after the cutoff are ignored, even when the pre-cutoff quote is stale (no carry-back).
+- **Price close** requires an **exact-contract match**: same event, market, selection and exact line as the bet (`docs/DATA_CONTRACTS.md`: -2.5 and -3 are different contracts; contract key in `src/nfl_market/markets/contracts.py`). The fair probability is the two-way devig against the opposite side at the paired line in the same snapshot; a book without the opposite side does not qualify (`no_opposite_side`).
+- **Line close** is each book's closing **main line** for the same event, market and selection. Main-line rule (locked, `book_primary_else_most_balanced`): the line the book flags as main/primary (`is_main` / `is_primary` column); else the line whose two sides' devigged prices are closest to 50/50 (ties: lower overround, then lower line). Open point for Will: a feed's main flag can be wrong (OddsLink flagged a junk Circa line in `nfl_ats`, see `docs/data_sources/sharp_feeds.md`); no guard is applied yet. The rule applied is stored per row (`main_line_rule` = `book_primary`, `most_balanced`, or `mixed` when median books differ).
+- Line close and price close each walk the tiers independently and each row records its own `close_tier`.
 
-**Open decision (must be set before step-3 CLV results).** `CLOSE_CUTOFF`, `MAX_CLOSE_AGE` and the minimum book count are not defined anywhere in the repo yet (`src/nfl_market/config.py` has no such setting). The earlier workflow used Pinnacle about 20 minutes before kickoff (`docs/EXISTING_MODELS.md`); this repo must preregister its own value. Enforcement code is **to be built in step 3**.
+### Close tiers (locked by Will, 2026-11-19)
+
+| Tier | `close_tier` | Source | Requirement | Flags | Reporting |
+|---|---|---|---|---|---|
+| 1 | `pinnacle` | Pinnacle's own close quote | Pinnacle has a qualifying close | none | primary results |
+| 2 | `sharp_median` | median of Circa and BookMaker | at least 2 of those books qualify (so both) | none (tier recorded) | primary results, tier mix shown |
+| 3 | `all_book_median` | median across all books with a qualifying close | at least 1 book | `MARKET_MEDIAN_FALLBACK`; `FEW_BOOKS` below the fallback minimum book count | **reported separately** as a weak fallback |
+| - | `missing` | none | no tier qualifies | `missing_reason` (e.g. `stale`, `no_quote_before_cutoff`) | excluded from CLV metrics, counted |
+
+A tier-2 attempt with only one sharp book falls to tier 3 (the lone sharp book is then one of the tier-3 books). Every non-tier-1 row stores `fallback_reason` naming why each higher tier was skipped (e.g. `pinnacle: 0 of 1 required books (pinnacle=stale)`). Median tiers store no single odds; for a price close they store the median devigged probability. Flag names follow `docs/EXISTING_MODELS.md`. Book names are matched case-insensitively (`Circa Sports`, `circasports` -> `circa`; `BookMaker.eu` -> `bookmaker`).
+
+### Parameters
+
+| Parameter | Value | Status | Setting (`NFLMI_` env prefix) |
+|---|---|---|---|
+| `CLOSE_CUTOFF` | 15 min before kickoff | **locked** (Will) | `close_cutoff_minutes` |
+| Tier order and books | Pinnacle; Circa + BookMaker; all books | **locked** (Will) | `config.default_tiers` |
+| Tier-2 minimum books | 2 | **locked** (Will) | `close_sharp_min_books` |
+| Main-line rule | `book_primary_else_most_balanced` | **locked** (Will) | `close_main_line_rule` |
+| `MAX_CLOSE_AGE` | 120 min | locked (Will, 2026-11-19) | `close_max_age_minutes` |
+| Tier-3 minimum book count (`FEW_BOOKS` below) | 5 (same as `nfl_ats`) | locked (Will, 2026-11-19) | `close_fallback_min_books` |
+
+The policy lives in `src/nfl_market/config.py` (`ClosePolicy`, `Settings.close_policy()`); every close row carries `policy_fingerprint` so a charter can pin the exact policy. Changing any value after CLV results exist opens a new experiment id (rule L1). Enforcement: `src/nfl_market/markets/closing.py` (`select_main_line`, `select_close`, `close_table`), tested in `tests/test_closing.py` and `tests/test_config_close.py`. Where the Pinnacle, Circa and BookMaker quotes can come from: `docs/data_sources/sharp_feeds.md`.
 
 ## 3. Line CLV (points)
 
@@ -62,4 +85,4 @@ Implemented as `clv.py::price_clv(bet_odds, bet_opposite_odds, close_odds, close
 
 ## 5. Reporting
 
-For every CLV table: close source mix (Pinnacle / fallback / missing counts), cutoff used, quote age distribution, line CLV and price CLV in separate columns, N in games, game-clustered intervals (`validation_design.md` Section 6). A quote is not a fill (`docs/METHODOLOGY.md`): CLV on quotes is a market-timing measure, not realised execution.
+For every CLV table: close tier mix (`pinnacle` / `sharp_median` / `all_book_median` / `missing` counts; `all_book_median` rows also reported separately), policy fingerprint, cutoff used, quote age distribution, line CLV and price CLV in separate columns, N in games, game-clustered intervals (`validation_design.md` Section 6). A quote is not a fill (`docs/METHODOLOGY.md`): CLV on quotes is a market-timing measure, not realised execution.
