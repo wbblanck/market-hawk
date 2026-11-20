@@ -30,7 +30,8 @@ from nfl_market.collectors.capture import (DEFAULT_BUDGETS, MODE_CLOSE, MODE_EAR
                                            usage_row)
 from nfl_market.collectors.snapshot_collector import SnapshotCollector  # noqa: E402
 from nfl_market.data.games import load_games  # noqa: E402
-from nfl_market.integrations.sharp import oddslink_provider, parlay_api_provider  # noqa: E402
+from nfl_market.integrations.sharp import (OddsApiProvider, oddslink_provider,  # noqa: E402
+                                           parlay_api_provider)
 
 EARLY_HORIZON_HOURS = 8 * 24
 
@@ -40,6 +41,8 @@ def make_provider(name: str, games: pd.DataFrame):
         return parlay_api_provider(books=(), regions="us", markets=("spreads", "totals", "h2h"), games=games)
     if name == "oddslink":
         return oddslink_provider(markets=("spreads", "totals"), games=games)
+    if name == "the_odds_api":  # Pinnacle only (eu region); key env NFLMI_ODDS_API_KEY
+        return OddsApiProvider(books=("pinnacle",), markets=("spreads", "totals"), games=games)
     raise SystemExit(f"unknown provider {name!r}")
 
 
@@ -84,7 +87,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--wait", action="store_true", help="close mode: sleep until each group's capture time")
     p.add_argument("--window-minutes", type=int, default=75)
     p.add_argument("--lead-minutes", type=int, default=25)
-    p.add_argument("--providers", default=None, help="comma separated; default parlay_api (+ oddslink for close)")
+    p.add_argument("--providers", default=None, help="comma separated; default parlay_api (+ oddslink, the_odds_api for close)")
     p.add_argument("--db", default="data/capture_run.duckdb")
     p.add_argument("--out-dir", default="captures")
     p.add_argument("--usage", default="state/usage.jsonl")
@@ -96,7 +99,7 @@ def main(argv: list[str] | None = None) -> int:
     games = load_games(a.games)  # the 2025 holdout is excluded; only upcoming games matter here
     now = (pd.Timestamp(a.now).tz_convert("UTC") if a.now else pd.Timestamp(datetime.now(UTC))).to_pydatetime()
     names = a.providers.split(",") if a.providers else (
-        ["parlay_api"] if a.mode == MODE_EARLY else ["parlay_api", "oddslink"])
+        ["parlay_api"] if a.mode == MODE_EARLY else ["parlay_api", "oddslink", "the_odds_api"])
 
     if a.mode == MODE_EARLY:
         up = upcoming_games(games, now, EARLY_HORIZON_HOURS)

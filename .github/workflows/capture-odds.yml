@@ -43,6 +43,7 @@ jobs:
     env:
       PARLAY_API_KEY: ${{ secrets.PARLAY_API_KEY }}
       ODDSLINK_API_KEY: ${{ secrets.ODDS_LINK }}
+      NFLMI_ODDS_API_KEY: ${{ secrets.THEODDSAPI }}
       CAPTURE_PASSPHRASE: ${{ secrets.CAPTURE_PASSPHRASE }}
       MODE: ${{ github.event.inputs.mode || 'early' }}
     steps:

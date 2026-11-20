@@ -54,6 +54,10 @@ DEFAULT_BUDGETS: dict[str, ProviderBudget] = {
     "parlay_api": ProviderBudget("parlay_api", monthly_cap=300, cost_per_call=3, floor_early=400, floor_close=250),
     "oddslink": ProviderBudget("oddslink", monthly_cap=120, cost_per_call=1, floor_early=10**9, floor_close=200,
                                modes=(MODE_CLOSE,)),
+    # The Odds API free Starter tier: 500 credits/month; one call = markets x regions = 2 (spreads, totals;
+    # Pinnacle only, so one region). Close captures only: its role is a second Pinnacle source.
+    "the_odds_api": ProviderBudget("the_odds_api", monthly_cap=100, cost_per_call=2, floor_early=10**9,
+                                   floor_close=150, modes=(MODE_CLOSE,)),
 }
 
 

@@ -15,6 +15,7 @@ The names match the ones already used in `NFL_ATS`, so the values can be copied 
 |---|---|---|
 | `PARLAY_API_KEY` | the same ParlayAPI key as in NFL_ATS | all books (Pinnacle plus about 14 US books): tiers 1 and 3, bet-time quotes |
 | `ODDS_LINK` | the same OddsLink key as in NFL_ATS | second Pinnacle source and the only Circa source, close captures only |
+| `THEODDSAPI` | The Odds API key (free Starter tier) | third source, Pinnacle only (eu region), close captures only. ParlayAPI's feed has lacked Pinnacle since Nov 10 |
 | `CAPTURE_PASSPHRASE` | a new long random string (e.g. `openssl rand -base64 32`), kept somewhere safe | encrypts every capture before it is committed. Without it the job stops before making any request |
 
 External timer for close captures (same setup as NFL_ATS `docs/scheduling.md`, which measured GitHub's own cron
@@ -56,7 +57,9 @@ receipt time, never the feed's timestamp.
 |---|---|---|---|---|---|
 | ParlayAPI | 1,000 requests/month; cost 1 per single-market call (`NFL_ATS data/lines/api_usage.csv`); its optional captures stop below 150 | 311 in Sept 2026, 67 by Nov 18 | 300 cost units | 400 remaining | 250 remaining |
 | OddsLink | 1,000 requests/month, 1 per call, 2/second (NFL_ATS probe 2026-10-18) | fallback only | 120 requests | not used | 200 remaining |
+| The Odds API (Starter) | 500 credits/month; one call = 2 credits (spreads and totals, Pinnacle only) | none known | 100 credits | not used | 150 remaining |
 | OddsPapi, PinnRadar | 250/month and 100/day, shared with kmodel and props | in use | **not used** by Market Hawk | | |
+| EndZoneAPI, SportsGameOdds | see "Other secrets" below | | **not used** | | |
 
 Each ParlayAPI call asks for spreads, totals and moneylines at once, budgeted as 3 units until the provider's
 `x-requests-last` header reports the real cost (the usage log then uses the measured value). Expected spend:
@@ -64,6 +67,13 @@ Each ParlayAPI call asks for spreads, totals and moneylines at once, budgeted as
 roughly 130 and 26 a month. Both floors sit above NFL_ATS's own floor of 150, so its lock runs keep their
 requests. The usage log `state/usage.jsonl` on `market-data` holds only counters, never odds. All caps and floors
 are proposals, not locked: they live in `nfl_market.collectors.capture.DEFAULT_BUDGETS`.
+
+## Other secrets in the repo (reviewed 2026-11-20)
+
+- **`THEODDSAPI`**: wired in (above). Pinnacle comes from Pinnacle's public site and "may incur a delay", so its rows carry the flag `public_site_feed_may_delay`; size of the delay is unverified. Each source keeps its own `source` label, and a book's close is built from one source's snapshot, never a mix of sources.
+- **`SPORTSGAMEODDS`**: not wired in. The free Amateur tier has 9 retail books (no Pinnacle, Circa or BookMaker), 10-minute updates and 2,500 objects a month. Pinnacle and Circa are in the Pro tier ($299/month), which Will declined for history; BookMaker is not in its published book list.
+- **`ENDZONEAPI_API_KEY`**: not wired in. Its main data is a *consensus* closing line (one number per game, source books not named) and, from 2020, per-book open and close for up to 8 books incl. Pinnacle. For 2024-25 the per-book close is "the last game-day snapshot, a few hours before kickoff", which is not our close (15 min before kickoff, at most 120 min old), so it cannot be stored as one. Possibly useful later: 2026 hourly line movement (`get_line_movement`) would be at most 60 minutes old at our cutoff if it includes Pinnacle; unverified, and its terms are unread. Free tier 500 credits a month, 5 per call.
+- **`ODDSPAPI_API_KEY`, `PINN_API`**: not used on purpose. Their quotas (250/month, 100/day) are shared with NFL_ATS and kmodel.
 
 ## Storage and terms
 

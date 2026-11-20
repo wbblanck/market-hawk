@@ -132,3 +132,22 @@ def test_capture_export_import_round_trip_gives_a_pinnacle_close(tmp_path, monke
     q = MarketStore(str(local)).quotes()
     r = select_close(q, KO, ClosePolicy(), event_id="2026_12_PIT_ATL", market="spread", selection="away")
     assert (r.close_tier, r.close_line, r.close_odds_american, r.quote_age_minutes) == ("pinnacle", 3.0, -110, 10.0)
+
+
+def test_the_odds_api_is_a_close_only_pinnacle_source(monkeypatch):
+    b = DEFAULT_BUDGETS["the_odds_api"]
+    now = datetime(2026, 11, 22, 17, 0, tzinfo=UTC)
+    assert budget_check(b, [], now, "close")[0] and not budget_check(b, [], now, "early")[0]
+    use = [{"at": "2026-11-21T15:00:00Z", "provider": "the_odds_api", "status": "called", "last": "2", "remaining": "151"}]
+    assert not budget_check(b, use, now, "close")[0]  # 151 - 2 < 150 floor
+    from nfl_market.integrations.sharp import OddsApiProvider
+
+    monkeypatch.setenv("NFLMI_ODDS_API_KEY", "k")
+    seen = {}
+    p = OddsApiProvider(books=("pinnacle",), markets=("spreads", "totals"), games=GAMES,
+                        get=lambda url, params: seen.update(params, url=url) or [event(["pinnacle", "draftkings"])])
+    qs = p.fetch_quotes()
+    assert seen["url"] == "https://api.the-odds-api.com/v4/sports/americanfootball_nfl/odds"
+    assert seen["bookmakers"] == "pinnacle" and seen["markets"] == "spreads,totals" and "regions" not in seen
+    assert {q.venue for q in qs} == {"pinnacle"} and {q.event_id for q in qs} == {"2026_12_PIT_ATL"}
+    assert all("public_site_feed_may_delay" in q.quality_flags for q in qs)

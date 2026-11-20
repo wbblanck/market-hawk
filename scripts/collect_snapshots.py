@@ -50,7 +50,14 @@ def _oddslink(season: int | None = None, week: int | None = None):
     return oddslink_provider(markets=("spreads", "totals"), games=_schedule())
 
 
-PROVIDER_FACTORIES = {"sports_leader": _sports_leader, "parlay_api": _parlay_api, "oddslink": _oddslink}
+def _the_odds_api(season: int | None = None, week: int | None = None):
+    from nfl_market.integrations.sharp import OddsApiProvider
+
+    return OddsApiProvider(books=("pinnacle",), markets=("spreads", "totals"), games=_schedule())
+
+
+PROVIDER_FACTORIES = {"sports_leader": _sports_leader, "parlay_api": _parlay_api, "oddslink": _oddslink,
+                      "the_odds_api": _the_odds_api}
 
 
 def resolve_providers(names: list[str], **options) -> list:
