@@ -104,6 +104,34 @@ class ClosePolicy:
         return hashlib.sha256(blob.encode()).hexdigest()[:12]
 
 
+# Paper staking policy (step 4). Every default below is PROPOSED, NOT LOCKED by Will:
+# changing one changes stakes, never closes or CLV (docs/methodology/staking.md).
+@dataclass(frozen=True)
+class StakePolicy:
+    """Fractional-Kelly paper staking with caps, applied in the order documented in staking.md.
+
+    ``max_quote_age_minutes`` is the edge-screen staleness limit (a quote older than this at
+    ``as_of`` is flagged STALE_QUOTE and is never staked). It is not the locked close age.
+    """
+
+    bankroll_units: float = 100.0         # proposed, not locked by Will
+    kelly_multiplier: float = 0.25        # proposed, not locked by Will
+    min_ev: float = 0.02                  # per unit staked; proposed, not locked by Will
+    max_bet_units: float = 1.0            # proposed, not locked by Will
+    max_game_units: float = 2.0           # all markets of one game together; proposed, not locked by Will
+    max_week_units: float = 8.0           # one season-week; proposed, not locked by Will
+    max_quote_age_minutes: float = 180.0  # edge screen only; proposed, not locked by Will
+
+    def __post_init__(self):
+        if self.bankroll_units <= 0:
+            raise ValueError("bankroll_units must be > 0")
+        if not 0 < self.kelly_multiplier <= 1:
+            raise ValueError("kelly_multiplier must be in (0, 1]")
+        for name in ("max_bet_units", "max_game_units", "max_week_units", "max_quote_age_minutes"):
+            if getattr(self, name) <= 0:
+                raise ValueError(f"{name} must be > 0")
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="NFLMI_", env_file=".env", extra="ignore")
     database_path: str = "data/nfl_market.duckdb"
@@ -121,6 +149,15 @@ class Settings(BaseSettings):
     # Locked final holdout manifest (validation_design.md Section 5).
     holdout_manifest_path: str = str(DEFAULT_MANIFEST)
 
+    # Paper staking (step 4). Proposed defaults, NOT locked by Will.
+    stake_bankroll_units: float = Field(100.0, gt=0)
+    stake_kelly_multiplier: float = Field(0.25, gt=0, le=1)
+    stake_min_ev: float = 0.02
+    stake_max_bet_units: float = Field(1.0, gt=0)
+    stake_max_game_units: float = Field(2.0, gt=0)
+    stake_max_week_units: float = Field(8.0, gt=0)
+    stake_max_quote_age_minutes: float = Field(180.0, gt=0)
+
     def close_policy(self) -> ClosePolicy:
         return ClosePolicy(
             cutoff_minutes=self.close_cutoff_minutes,
@@ -128,6 +165,17 @@ class Settings(BaseSettings):
             fallback_min_books=self.close_fallback_min_books,
             main_line_rule=self.close_main_line_rule,
             tiers=default_tiers(self.close_sharp_min_books),
+        )
+
+    def stake_policy(self) -> StakePolicy:
+        return StakePolicy(
+            bankroll_units=self.stake_bankroll_units,
+            kelly_multiplier=self.stake_kelly_multiplier,
+            min_ev=self.stake_min_ev,
+            max_bet_units=self.stake_max_bet_units,
+            max_game_units=self.stake_max_game_units,
+            max_week_units=self.stake_max_week_units,
+            max_quote_age_minutes=self.stake_max_quote_age_minutes,
         )
 
 

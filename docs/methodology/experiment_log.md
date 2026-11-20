@@ -144,3 +144,51 @@ decision:          follow-up. Margin: no candidate beats Elo (all CIs cover 0), 
                    and EPA features; in-fold refit of ported constants to remove the V5 caveat; leakage review.
 artifacts:         data/processed/step3_oof_predictions.parquet (gitignored), 16,458 rows, sha256 cb2d2c5de84b64d653ea09401fd816696aa9208ccbaa7db245d0364ee88246db
 ```
+
+### 20261119-step4-stacking-01
+
+```text
+experiment_id:     20261119-step4-stacking-01
+created_at_utc:    2026-11-19T17:45:00Z (design and primary objective fixed in code before any test-season score)
+operator:          Claude (step-4 stacking agent), for the step-4 lead
+hypothesis:        A simplex-weighted stack (stack_v1) of elo_v1, kalman_gs_v1, ridge_v1, xgb_v1 (margin) and elo_v1,
+                   ridge_v1, xgb_v1 (total) has lower margin/total MAE and home-win log loss than elo_v1 and than the
+                   best single component on the same games. Direction: lower is better. Expectation: small or no gain.
+target/grain/T:    home margin, total, P(home win); one row per game; T = kickoff_utc - 24h (inherited from step 3)
+population:        test seasons 2018-2024 (1,942 games; 2015-2017 are weight history only: >= 3 training seasons)
+data:              data/processed/step3_oof_predictions.parquet (experiment 20261119-step3-game-models-01; 16,458 rows)
+                   + nflverse cache for outcomes/label times; holdout nfl_games_2025_v1 refused; 2026 not read
+charter:           season-level walk-forward: weights for S fit on OOF rows of seasons < S with prediction time and
+                   label time < S's first T (distributions.evaluate.training_rows); no weekly refit inside S
+method:            non-negative weights summing to 1, no intercept; primary objective squared error (exact active-set
+                   QP); variants reported separately: MAE objective (stack_mae_v1), bayes_od_v1 as fifth candidate
+                   (stack_b5_v1); baseline stack equal weights (stack_eq_v1). Win prob: K1 margin distribution refit per
+                   S on prior rows' stack margin, P(M>0)/(1-P(M=0))
+primary metric:    margin MAE; secondary total MAE, home-win log loss/Brier, ECE (10 bins), K1 PIT/coverage, cover
+                   calibration at the nflverse line (capture time unknown; context only)
+success rule:      "beats" only if paired game-clustered bootstrap 95% CI (B=2000) excludes 0 below AND majority of folds
+code/env/command:  uncommitted step-4 working tree on branch claude/project-thread-5axwmr; `python scripts/run_stacking.py`
+status:            completed
+--- appended after run (2026-11-19) ---
+results:           docs/results/step4_stacking.md, docs/results/step4_model_health.json. Pooled 2018-2024 margin MAE:
+                   stack_v1 10.211, stack_eq_v1 10.185, elo 10.221, kalman_gs 10.192, ridge 10.198, xgb 10.265.
+                   stack_v1 minus elo -0.009 [-0.074, +0.056] (3/7 folds); minus best single (kalman_gs) +0.020
+                   [-0.020, +0.057] (4/7). Total MAE stack_v1 10.743: minus elo -0.250 [-0.354, -0.136] (7/7, beats);
+                   minus best single (xgb) -0.015 [-0.055, +0.024] (4/7). Home-win log loss 0.6371 vs elo 0.6369,
+                   +0.000 [-0.004, +0.005]. Equal weights margin minus elo -0.035 [-0.086, +0.018] (3/7).
+calibration:       P(home win) ECE 0.030 (elo 0.016); K1 PIT mean 0.492, coverage 50/80/95 = 0.535/0.808/0.951;
+                   cover log loss at the nflverse line 0.713 (all components 0.711-0.716, worse than 0.693).
+                   Verdict usable-with-caveats (2019 PIT mean 0.450; inherits step-3 distribution caveats).
+leakage audit:     REVIEW REQUIRED (author checks: future-perturbation and late-label tests in tests/test_stacking.py;
+                   validate_predictions train_end_utc < prediction_time_utc on every row)
+holdout access:    none
+deviations:        none from the charter; V5 caveat inherited for 2018-2021 folds; clean seasons = 2022-2024 (2015 is
+                   not scored)
+decision:          follow-up. No stack beats elo_v1 or the best single model on margin or win probability; the total
+                   stack beats Elo's NB total (as ridge/xgb already did in step 3) but not xgb_v1. stack_v1 stays
+                   experimental; it is a convenience blend for pricing, not a promoted improvement. Forward weights
+                   (2015-2024): margin elo 0.081, kalman_gs 0.432, ridge 0.201, xgb 0.286; total ridge 0.540, xgb 0.460
+                   (config/models/stack_v1_weights.json).
+artifacts:         data/processed/step4_stack_predictions.parquet (gitignored), 1,942 rows, sha256
+                   0164302238b75b37e8e25e3d942d1007e1e395187c56be8aebd216361b5ecb4a
+```
