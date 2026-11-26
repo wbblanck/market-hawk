@@ -176,3 +176,12 @@ results-versus-line gap (0.5, CI including 0) shows no edge from QB-out games: t
 
 **Caveat.** The flag catches only starters listed Out or Doubtful who started the team's previous game. QBs hurt
 mid-game the week before, where the backup already had the most dropbacks, are not flagged.
+
+## Decisions (Will, 2026-11-26)
+
+These follow the recommendations Will accepted.
+
+- EBM and NGBoost are not adopted.
+- Close capture was fixed in the markets thread. Injury snapshots were added (`capture-injuries.yml`).
+- The market-residual model will be revisited after about a season of our own timestamped prices.
+- CatBoost, BART, neural nets, HMMs and SVR are skipped.

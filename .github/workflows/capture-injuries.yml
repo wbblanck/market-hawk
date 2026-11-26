@@ -1,0 +1,54 @@
+name: Capture injuries
+# Timestamped snapshots of the nflverse injury-report file (docs/data_sources/nflverse.md).
+# From 2025 the file has no date_modified and is overwritten in place, so without these snapshots a past
+# week cannot show when a player was first listed Out. A snapshot is stored only when the file changed.
+# nflverse data is CC-BY 4.0, so snapshots are committed in plaintext to injuries/ on the market-data branch.
+# This workflow never touches captures/ or state/usage.jsonl (owned by capture-odds.yml).
+on:
+  schedule:
+    - cron: '41 */3 * * *'   # every 3 hours; GitHub cron can run late, which only coarsens first-seen times
+  workflow_dispatch:
+    inputs:
+      season:
+        description: 'season to snapshot (default: current)'
+        default: ''
+
+permissions:
+  contents: write
+
+concurrency:
+  group: capture-injuries
+  cancel-in-progress: false
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.11", cache: pip}
+      - run: pip install -e .
+      - name: Check out the market-data branch
+        run: |
+          git config user.name "market-hawk-capture"
+          git config user.email "market-hawk-capture@users.noreply.github.com"
+          git fetch --depth 1 origin market-data
+          git worktree add store FETCH_HEAD
+          git -C store checkout -B market-data
+      - name: Snapshot
+        run: |
+          ARGS="--store store/injuries"
+          [ -n "${{ github.event.inputs.season }}" ] && ARGS="$ARGS --season ${{ github.event.inputs.season }}"
+          python -m nfl_market.data.injury_snapshots $ARGS
+      - name: Commit to market-data
+        run: |
+          cd store
+          git add injuries
+          git commit -m "injuries snapshot $(date -u +%Y-%m-%dT%H:%MZ)" || exit 0
+          for i in 1 2 3 4; do
+            if git pull --rebase origin market-data 2>/dev/null || true; git push origin HEAD:market-data; then exit 0; fi
+            git rebase --abort 2>/dev/null || true
+            sleep $((i*5))
+          done
+          exit 1

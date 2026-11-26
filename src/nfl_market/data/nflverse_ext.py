@@ -22,8 +22,10 @@ Leakage notes
 * Panels describe completed games; features use them only through ``label_available_at_utc < T``
   (``nfl_market.features.external``).
 * Injury ``date_modified`` is missing in 2009 and from 2025 on (the file is overwritten in place). For the
-  live season the file is fetched at pricing time, so its contents are known at that time; for history the
-  rows without a timestamp are treated as available (flagged in the feature card).
+  live season the file is fetched at pricing time, so its contents are known at that time. From 2026-11 the
+  ``capture-injuries`` workflow snapshots the file every 3 hours (``nfl_market.data.injury_snapshots``); rows it
+  saw get their first capture time as ``date_modified``. Other rows without a timestamp are treated as available
+  (flagged in the feature card); ``report_time_source`` says which applies.
 """
 from __future__ import annotations
 
@@ -81,10 +83,14 @@ def reduce_pbp(pbp: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
     return team, qb
 
 
-def download(last_season: int, out_dir: str | Path = EXT_DIR, refresh_seasons: tuple[int, ...] = ()) -> Path:
+def download(last_season: int, out_dir: str | Path = EXT_DIR, refresh_seasons: tuple[int, ...] = (),
+             snapshot_store: str | Path | None = None) -> Path:
     """Build or update the panels for seasons ``FIRST_*..last_season`` (holdout seasons skipped).
 
     Seasons already in the panels are kept unless listed in ``refresh_seasons`` (use this for the live season).
+    Injury rows without ``date_modified`` get the first capture time from the injury snapshots
+    (``nfl_market.data.injury_snapshots``; store from ``snapshot_store`` or ``$NFLMI_INJURY_SNAPSHOTS``) when the
+    store exists; ``report_time_source`` records which time each row carries.
     """
     import httpx
 
@@ -130,6 +136,12 @@ def download(last_season: int, out_dir: str | Path = EXT_DIR, refresh_seasons: t
     banned = holdout_seasons()
     for name, frames in ((TEAM_PANEL, teams), (QB_PANEL, qbs), (INJURY_PANEL, injs)):
         df = pd.concat([f for f in frames if len(f)], ignore_index=True)
+        if name == INJURY_PANEL:
+            from nfl_market.data.injury_snapshots import fill_report_times, first_seen, store_dir
+
+            store = store_dir(snapshot_store)
+            seen = first_seen(store) if (store / "manifest.jsonl").exists() else None
+            df = fill_report_times(df, seen if seen is not None else pd.DataFrame())
         if df["season"].astype(int).isin(banned).any():
             raise AssertionError(f"holdout season in {name}")
         df.to_parquet(out / name, index=False)
