@@ -2,7 +2,7 @@
 
 Usage::
 
-    python scripts/price_slate.py [--as-of 2026-11-19T18:00Z] [--days 8] [--model default|elo_v1|ridge_v1|stack_v1]
+    python scripts/price_slate.py [--as-of 2026-11-19T18:00Z] [--days 8] [--model default|elo_v1|ridge_v1|ridge_v2|xgb_v2|stack_v2]
                                   [--oof data/processed/step3_oof_predictions.parquet] [--record-bets] [--db PATH]
 
 Steps (all point in time at ``--as-of``, default now):
@@ -16,9 +16,12 @@ Steps (all point in time at ``--as-of``, default now):
 4. ``--record-bets``: compute edges on the stored quotes, size paper stakes
    (``settings.stake_policy()``) and append them to the paper bet log. Paper only.
 
-``--model default`` takes ``pred_margin`` from ``elo_v1`` (spreads and moneylines) and
-``pred_total`` from ``ridge_v1`` (totals), merged into one prediction row per game; each
-price row's ``model_id`` names the model that produced it. ``stack_v1`` is used only if
+``--model default`` takes ``pred_margin`` and ``pred_total`` from ``ridge_v2`` (ridge_v1 plus nflverse EPA
+and pre-game QB status; it beat elo_v1 and ridge_v1 on margin, total and win log loss in the 2015-2024
+walk-forward, docs/results/experiments/recommendations_backtest.md). Before fitting, the nflverse
+play-by-play and injury panels are refreshed for the live season (``nfl_market.data.nflverse_ext``), so the
+injury report used is the one published at pricing time. Each price row's ``model_id`` names the model that
+produced it. ``stack_v2`` is used only if
 ``nfl_market.models.stacking.StackModel`` is importable; its distributions are fit on
 ``data/processed/step4_stack_predictions.parquet`` when that exists.
 
@@ -56,6 +59,9 @@ from nfl_market.models.runner import attach_outcomes
 
 STEP3_OOF = ROOT / "data" / "processed" / "step3_oof_predictions.parquet"
 STACK_OOF = ROOT / "data" / "processed" / "step4_stack_predictions.parquet"
+DEFAULT_MODEL = "ridge_v2"
+#: models that read the nflverse play-by-play / injury panels
+EXTERNAL_MODELS = {"ridge_v2", "xgb_v2", "stack_v2"}
 
 
 def _utc(ts) -> pd.Timestamp:
@@ -70,11 +76,17 @@ def make_model(model_id: str):
     if model_id == "ridge_v1":
         from nfl_market.models.ridge_model import RidgeModel
         return RidgeModel()
-    if model_id == "stack_v1":
+    if model_id == "ridge_v2":
+        from nfl_market.models.ridge_model import ridge_v2
+        return ridge_v2()
+    if model_id == "xgb_v2":
+        from nfl_market.models.xgb_model import xgb_v2
+        return xgb_v2()
+    if model_id == "stack_v2":
         try:
             from nfl_market.models.stacking import StackModel
         except ImportError as exc:  # agent 2's module may be absent
-            raise SystemExit(f"stack_v1 unavailable: {exc}")
+            raise SystemExit(f"stack_v2 unavailable: {exc}")
         return StackModel.from_weights_file()
     raise SystemExit(f"unknown model {model_id!r}")
 
@@ -98,12 +110,7 @@ def forward_predictions(games: pd.DataFrame, model_id: str, as_of: pd.Timestamp,
 def build_predictions(games, model: str, as_of, upcoming) -> tuple[pd.DataFrame, str, str]:
     """One prediction row per game. Returns (preds, margin_model_id, total_model_id)."""
     if model == "default":
-        m = forward_predictions(games, "elo_v1", as_of, upcoming)
-        t = forward_predictions(games, "ridge_v1", as_of, upcoming)
-        m = m.drop(columns=["pred_total", "pred_total_sd"]).merge(
-            t[["game_id", "pred_total", "pred_total_sd"]], on="game_id", how="left")
-        m["total_model_id"] = "ridge_v1"
-        return m, "elo_v1", "ridge_v1"
+        model = DEFAULT_MODEL
     p = forward_predictions(games, model, as_of, upcoming)
     p["total_model_id"] = model
     return p, model, model
@@ -126,7 +133,8 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--as-of", default=None, help="pricing time (UTC); default now")
     ap.add_argument("--days", type=float, default=8.0, help="price games kicking off within this many days")
-    ap.add_argument("--model", default="default", choices=["default", "elo_v1", "ridge_v1", "stack_v1"])
+    ap.add_argument("--model", default="default", choices=["default", "elo_v1", "ridge_v1", "ridge_v2", "xgb_v2", "stack_v2"])
+    ap.add_argument("--no-refresh", action="store_true", help="use the cached nflverse panels as they are")
     ap.add_argument("--oof", default=None, help="OOF predictions for the distribution fit")
     ap.add_argument("--db", default=settings.database_path)
     ap.add_argument("--record-bets", action="store_true", help="size and record paper bets on current edges")
@@ -139,10 +147,15 @@ def main(argv=None) -> int:
     if upcoming.empty:
         print(f"no unplayed games between {as_of} and +{args.days} days")
         return 0
+    if (DEFAULT_MODEL if args.model == "default" else args.model) in EXTERNAL_MODELS:
+        from nfl_market.data.nflverse_ext import EXT_DIR, TEAM_PANEL, download
+        live = tuple(sorted(set(upcoming["season"].astype(int))))
+        if not (args.no_refresh and (EXT_DIR / TEAM_PANEL).exists()):
+            download(max(live), refresh_seasons=() if args.no_refresh else live)
     preds, m_id, t_id = build_predictions(games, args.model, as_of, upcoming)
     preds = preds.merge(upcoming[["game_id", "kickoff_utc"]], on="game_id", how="left")
 
-    oof_path = Path(args.oof) if args.oof else (STACK_OOF if args.model == "stack_v1" and STACK_OOF.exists()
+    oof_path = Path(args.oof) if args.oof else (STACK_OOF if args.model == "stack_v2" and STACK_OOF.exists()
                                                 else STEP3_OOF)
     oof = oof_with_outcomes(oof_path, games)
     margin_fd, total_fd = fit_default_distributions(oof, as_of, margin_model_id=m_id, total_model_id=t_id)

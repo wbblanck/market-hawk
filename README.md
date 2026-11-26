@@ -45,13 +45,15 @@ Development standards for validation, leakage, features, calibration, closing li
 All step-4 frames follow one contract, [`src/nfl_market/markets/interface.py`](src/nfl_market/markets/interface.py).
 
 ```bash
-python scripts/price_slate.py --as-of 2026-11-22T12:00Z      # fair spread/total/moneyline prices -> fair_prices
-python scripts/run_stacking.py                               # stack_v1 walk-forward -> docs/results/step4_stacking.md
+python -m nfl_market.data.nflverse_ext --last-season 2026  # nflverse play-by-play + injury panels (2025 skipped)
+python scripts/price_slate.py --as-of 2026-11-22T12:00Z      # fair spread/total/moneyline prices (ridge_v2) -> fair_prices
+python scripts/run_stacking.py                               # stack_v2 walk-forward -> docs/results/step4_stacking.md
 python scripts/run_market_backtest.py --model elo_v1         # benchmark vs nflverse lines (NOT CLV) -> docs/results/step4_markets.md
 ```
 
 - `markets.pricing` turns a game prediction plus its outcome distribution (K1 margin, t total) into ternary win/push/loss probabilities and fair odds; `markets.edges` joins them to stored quotes (breakeven, devigged market probability, EV per unit); `markets.staking` sizes paper stakes with fractional Kelly and caps ([`docs/methodology/staking.md`](docs/methodology/staking.md); defaults are proposals); `markets.bet_log` keeps an append-only paper bet log graded against the locked close, storing line CLV and price CLV separately with the tier each came from.
 - `models.stacking` blends Elo, Kalman, Ridge and XGBoost with season walk-forward simplex weights. It does not beat the best single model ([results](docs/results/step4_stacking.md)).
+- `ridge_v2` / `xgb_v2` add nflverse EPA form and pre-game QB status (`features.external`; [data notes](docs/data_sources/nflverse.md), [backtest](docs/results/experiments/recommendations_backtest.md)). They are more accurate than v1 but, like every model here, add nothing beyond the closing line.
 - The 2025 holdout is refused by every writer. Forward 2026 prices therefore come from models trained without 2025.
 - Paper bets only: there is no wager placement code.
 

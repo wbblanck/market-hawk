@@ -36,7 +36,7 @@ from typing import Protocol, Sequence, runtime_checkable
 
 import pandas as pd
 
-STACK_MODEL_ID = "stack_v1"
+STACK_MODEL_ID = "stack_v2"
 
 PRICED_MARKETS: tuple[str, ...] = ("spread", "total", "moneyline")
 SELECTIONS = {"spread": ("home", "away"), "total": ("over", "under"), "moneyline": ("home", "away")}

@@ -101,3 +101,26 @@ plaintext storage instead; that is Will's call.
    shows whether they come back. Spreads are verified.
 4. Moneyline quotes are stored raw in `market_snapshots` only; `quote_snapshots` validation still accepts only
    spreads and totals, so moneyline edges and CLV need that routing extended (open item).
+
+## NFL_ATS 2026 spread captures (imported, not stored here)
+
+`wbblanck/NFL_ATS` has captured every book's spread since 2026 week 3, in `data/lines/market_captures.csv`. It
+uses the ParlayAPI feed: 15 books including Pinnacle, the home side only, and spreads only. Its lock is kickoff
+minus 15 minutes, the same rule as our close.
+
+`scripts/import_nfl_ats_lines.py --nfl-ats <clone> --db data/nfl_market.duckdb` replays those captures through
+the snapshot collector into a local DuckDB:
+- provider `nfl_ats_import`, with flags `imported_from_nfl_ats` and `home_side_only`;
+- NFL_ATS's capture time as `captured_at_utc`;
+- holdout seasons refused;
+- idempotent, so re-running is safe.
+
+Nothing is copied into this repo. A test import on 2026-11-26 covered 166 captures and 19,684 routed quotes for
+160 games (weeks 3-13, all game ids matching nflverse). Weeks 3-11 had 130 completed games; under our locked
+close policy they give:
+- 102 Pinnacle-tier closes;
+- 12 all-book-median closes;
+- 16 missing (stale: no capture within 120 minutes of the cutoff, mostly week 6).
+
+CBS "open" lines are not imported as quotes. The page shows the opening number at a later time, so it was not a
+price on offer at that capture time.
