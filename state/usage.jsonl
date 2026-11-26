@@ -23,3 +23,4 @@
 {"at": "2026-11-26T21:05:52.555003Z", "cost_estimate": 3, "last": "3", "mode": "close", "provider": "parlay_api", "reason": "ok", "remaining": "511", "status": "called", "used": "489"}
 {"at": "2026-11-26T21:05:52.555003Z", "cost_estimate": 1, "last": "1", "mode": "close", "provider": "oddslink", "reason": "ok", "remaining": "992", "status": "called", "used": "8"}
 {"at": "2026-11-26T21:05:52.555003Z", "cost_estimate": 2, "last": "2", "mode": "close", "provider": "the_odds_api", "reason": "ok", "remaining": "488", "status": "called", "used": "12"}
+{"at": "2026-11-26T23:50:39.191994Z", "cost_estimate": 3, "last": "3", "mode": "early", "provider": "parlay_api", "reason": "ok", "remaining": "505", "status": "called", "used": "495"}
