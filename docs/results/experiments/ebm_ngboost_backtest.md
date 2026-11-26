@@ -145,3 +145,34 @@ everything). They are close to zero for away defensive EPA, division game and th
 - Follow-up candidate, not adopted: xgb_v2 under-reacts to a ruled-out starting QB. The cheapest fix is to rely
   on ridge_v2 (the default pricing model) or the stack for QB-out games, or to pre-register an xgb_v3 with a
   smaller min_child_weight and test it walk-forward. Too few QB-out games exist to choose by backtest alone.
+
+## Follow-up: which QB-out effect is right? (2026-11-26)
+
+Script: `scripts/experiments/qb_out_market_effect.py` (research only, no production change).
+
+No line from before the injury news exists in our data. The nflverse line is close-like (one line per game,
+capture time unknown), and our own captures start 2026-11-21. So instead of a lookahead-to-close move, this
+regresses the nflverse line itself on the team-strength features at T (the xgb_v2 set without the QB columns)
+plus the two QB-out flags. The data are 2009-2024: 4,345 games, 159 flagged starters (82 home, 77 away).
+
+The line already prices team strength, so the flag coefficient is the market's adjustment for a newly ruled-out
+expected starter. Its residual SD is 2.7 points, against 13.3 for final margins, so it is about 5 times more
+precise. CIs are from a bootstrap clustered by (season, week), B = 4,000.
+
+| dependent | points against the team whose QB is out | 95% CI |
+|---|---|---|
+| nflverse spread line (market) | **3.05** | [2.49, 3.65] |
+| final margin (results) | 3.53 | [1.41, 5.67] |
+| margin minus line (anything the market misses) | 0.48 | [-1.48, 2.47] |
+| nflverse total line (change in total) | -1.69 | [-2.19, -1.25] |
+| final total | -3.51 | [-5.51, -1.59] |
+
+Line effect by era: 2009-2016 home -2.9 / away +2.0; 2017-2024 home -3.5 / away +3.8.
+
+**Reading.** The market prices a ruled-out starter at about 3 points, and results agree, at 3.5. xgb_v2's 1.0
+point lies below both CIs, while the EBM (3.0) and Ridge (4.0) lie inside them. On totals, the market lowers the
+total by 1.7 and xgb_v2 by 1.7, while results fall by 3.5, which is closer to the EBM and Ridge. The
+results-versus-line gap (0.5, CI including 0) shows no edge from QB-out games: the market already prices them.
+
+**Caveat.** The flag catches only starters listed Out or Doubtful who started the team's previous game. QBs hurt
+mid-game the week before, where the backup already had the most dropbacks, are not flagged.
