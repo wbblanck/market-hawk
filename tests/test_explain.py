@@ -1,4 +1,5 @@
 """Driver explanation of ridge models: contributions must add up to the model's own prediction."""
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -19,14 +20,17 @@ def test_top_drivers_sorted_by_size_and_skips_small_and_bookkeeping():
 
 
 def test_contributions_add_up_to_prediction():
+    from pathlib import Path
+
     from nfl_market.data.games import load_games
     from nfl_market.models.explain import contributions
+    from nfl_market.models.folds import prediction_time
     from nfl_market.models.ridge_model import RidgeModel
-    from tests.test_models_step3 import FIX, _split
 
-    games = load_games(FIX)
-    train, test = _split(games)
-    test = test.reset_index(drop=True)
+    games = load_games(Path(__file__).parent / "fixtures" / "nflverse" / "games_sample.csv")
+    test = games[(games.season == 2018) & (games.week == 5)]
+    train = games[games.label_available_at_utc < prediction_time(test).min()]
+    test = test.assign(home_score=np.nan, away_score=np.nan, label_available_at_utc=pd.NaT).reset_index(drop=True)
     m = RidgeModel().fit(train.reset_index(drop=True))
     p = m.predict(test)
     C = contributions(m, test)
