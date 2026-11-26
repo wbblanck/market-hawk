@@ -12,7 +12,7 @@ Store layout (plaintext; nflverse data is CC-BY 4.0, attribution in ``docs/data_
 
 A snapshot is written only when the file's content differs from the season's latest stored snapshot.
 ``captured_at_utc`` is our receipt time, never a feed timestamp. The workflow ``capture-injuries.yml`` runs this
-every 3 hours and commits the store to ``injuries/`` on the ``market-data`` branch.
+at a few set times a week (Wed-Sat evening, Sun morning, Mon and Thu afternoon) and commits the store to ``injuries/`` on the ``market-data`` branch.
 
 ``first_seen`` gives, for each report row (season, week, team, player, report_status), the earliest capture that
 contained it. ``fill_report_times`` uses it as ``date_modified`` where nflverse gives none, so a row counts as

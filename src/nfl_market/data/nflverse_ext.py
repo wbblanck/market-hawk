@@ -23,7 +23,7 @@ Leakage notes
   (``nfl_market.features.external``).
 * Injury ``date_modified`` is missing in 2009 and from 2025 on (the file is overwritten in place). For the
   live season the file is fetched at pricing time, so its contents are known at that time. From 2026-11 the
-  ``capture-injuries`` workflow snapshots the file every 3 hours (``nfl_market.data.injury_snapshots``); rows it
+  ``capture-injuries`` workflow snapshots the file at a few set times a week (``nfl_market.data.injury_snapshots``); rows it
   saw get their first capture time as ``date_modified``. Other rows without a timestamp are treated as available
   (flagged in the feature card); ``report_time_source`` says which applies.
 """

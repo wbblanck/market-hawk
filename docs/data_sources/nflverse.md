@@ -32,7 +32,7 @@ nflverse tables (snap counts, PFR advanced stats) are not used.
 - Injury `date_modified` is missing in 2009 and from 2025 on; nflverse overwrites the live season's file in
   place with no history. Forward pricing uses the report as fetched at pricing time, which is legitimate, but a
   later backtest of 2026 would see final reports.
-- Fix (from 2026-11-26): `.github/workflows/capture-injuries.yml` snapshots the live injury file every 3 hours
+- Fix (from 2026-11-26): `.github/workflows/capture-injuries.yml` snapshots the live injury file at a few set times a week (Wed-Sat about 6 PM ET, Sun 10 AM and 12 PM ET, Mon and Thu 2 PM ET)
   (`nfl_market.data.injury_snapshots`). It stores a copy only when the content changed, under `injuries/` on the
   `market-data` branch (plaintext, CC-BY), with our own `captured_at_utc`. `nflverse_ext.download` gives each
   report row without `date_modified` the time of the first snapshot that contained it (`report_time_source =

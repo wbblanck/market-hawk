@@ -6,7 +6,13 @@ name: Capture injuries
 # This workflow never touches captures/ or state/usage.jsonl (owned by capture-odds.yml).
 on:
   schedule:
-    - cron: '41 */3 * * *'   # every 3 hours; GitHub cron can run late, which only coarsens first-seen times
+    # A few set times around the NFL injury-report rhythm (cron is UTC; ET shown for November-January, EST).
+    # In September-October (EDT) every time runs an hour earlier on the ET clock. GitHub cron can run late, which
+    # only coarsens first-seen times.
+    - cron: '17 23 * * 3,4,5,6'   # Wed-Sat ~6:17 PM ET: practice reports (Wed-Fri), Saturday statuses
+    - cron: '17 19 * * 1,4'       # Mon and Thu ~2:17 PM ET: before the evening kickoffs
+    - cron: '17 15 * * 0'         # Sun ~10:17 AM ET: game-day statuses
+    - cron: '17 17 * * 0'         # Sun ~12:17 PM ET: after the 1 PM games' inactives (90 min before kickoff)
   workflow_dispatch:
     inputs:
       season:
