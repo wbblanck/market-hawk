@@ -36,10 +36,15 @@ def _targets(g: pd.DataFrame) -> dict[str, np.ndarray]:
 
 
 class FeatureModel:
-    """Base: weekly refit on point-in-time features, inner-season SD/hyperparameter selection."""
+    """Base: weekly refit on point-in-time features, inner-season SD/hyperparameter selection.
+
+    ``extra`` names columns from ``features.external`` (nflverse EPA and QB status) appended to
+    ``features``; they are built from the same training history, so the as-of rule is unchanged.
+    """
 
     model_id = "feature_base"
     features: tuple[str, ...] = FEATURE_COLUMNS
+    extra: tuple[str, ...] = ()
 
     def __init__(self):
         self._inner_cache: dict = {}
@@ -67,7 +72,7 @@ class FeatureModel:
             ok = ok and (added.empty or added.min() > self._feat_max_label)
         cache = self._feat_cache if ok else None
         need = rows if cache is None else rows[~rows["game_id"].isin(cache.index)]
-        fresh = team_features(hist, need)
+        fresh = self._all_features(hist, need)
         fresh.index = need["game_id"].to_numpy()
         cache = fresh if cache is None else pd.concat([cache, fresh])
         self._feat_cache = cache
@@ -76,6 +81,16 @@ class FeatureModel:
         out = cache.loc[rows["game_id"].to_numpy()]
         out.index = rows.index
         return out
+
+    def _all_features(self, hist: pd.DataFrame, rows: pd.DataFrame) -> pd.DataFrame:
+        base = team_features(hist, rows)
+        if not self.extra:
+            return base
+        if getattr(self, "_ext_hist_ref", None) is not hist:
+            from nfl_market.features.external import ExternalFeatures
+
+            self._ext, self._ext_hist_ref = ExternalFeatures(hist), hist
+        return base.join(self._ext.features(rows)[list(self.extra)])
 
     # subclasses implement
     def _make(self, target: str, hp):
@@ -121,7 +136,7 @@ class FeatureModel:
         return self
 
     def predict(self, games: pd.DataFrame) -> pd.DataFrame:
-        X = team_features(self.history_, games)[list(self.features)]
+        X = self._all_features(self.history_, games)[list(self.features)]
         pm = self.models_["margin"].predict(X)
         pt = self.models_["total"].predict(X)
         sm, stt = self.inner_["margin"][1], self.inner_["total"][1]
@@ -135,9 +150,11 @@ class RidgeModel(FeatureModel):
 
     ALPHAS = (1.0, 10.0, 100.0, 1000.0, 10000.0)
 
-    def __init__(self, model_id: str = "ridge_v1"):
+    def __init__(self, model_id: str = "ridge_v1", extra: tuple[str, ...] = ()):
         super().__init__()
         self.model_id = model_id
+        self.extra = tuple(extra)
+        self.features = tuple(FEATURE_COLUMNS) + self.extra
 
     def _grid(self, target):
         return list(self.ALPHAS)
@@ -145,3 +162,10 @@ class RidgeModel(FeatureModel):
     def _make(self, target, alpha):
         return make_pipeline(SimpleImputer(strategy="median", add_indicator=True, keep_empty_features=True),
                              StandardScaler(), Ridge(alpha=alpha))
+
+
+def ridge_v2() -> RidgeModel:
+    """``ridge_v2``: ridge_v1 plus nflverse EPA and pre-game QB status (``features.external``)."""
+    from nfl_market.features.external import EXTERNAL_COLUMNS
+
+    return RidgeModel("ridge_v2", EXTERNAL_COLUMNS)

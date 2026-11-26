@@ -74,8 +74,8 @@ def _synthetic(seasons=range(2010, 2017), per_season=48, seed=1):
             gid = f"{s}_{i // 3 + 1:02d}_SYN{i}_X"
             p = {m: rng.normal(1.5, 5) for m in MARGIN_COMPONENTS}
             t = {m: rng.normal(45, 4) for m in TOTAL_COMPONENTS}
-            m_obs = round(0.6 * p["elo_v1"] + 0.4 * p["ridge_v1"] + rng.normal(0, 3))
-            tot = round(0.5 * t["ridge_v1"] + 0.5 * t["xgb_v1"] + rng.normal(0, 3))
+            m_obs = round(0.6 * p["elo_v1"] + 0.4 * p["ridge_v2"] + rng.normal(0, 3))
+            tot = round(0.5 * t["ridge_v2"] + 0.5 * t["xgb_v2"] + rng.normal(0, 3))
             hs = (tot + m_obs) / 2
             games.append({"game_id": gid, "season": s, "week": i // 3 + 1, "kickoff_utc": ko, "home_score": hs,
                           "away_score": tot - hs, "label_available_at_utc": ko + pd.Timedelta(days=3),
@@ -100,14 +100,14 @@ def test_walkforward_stack_contract_and_weights():
     assert p["pred_home_win_prob"].between(0, 1).all() and p["pred_total"].notna().all()
     last = {(w.season, w.target): w for w in run.weights}
     wm, wt = last[(2016, "margin")].as_dict(), last[(2016, "total")].as_dict()
-    assert wm["elo_v1"] == pytest.approx(0.6, abs=0.08) and wm["ridge_v1"] == pytest.approx(0.4, abs=0.08)
-    assert wt["ridge_v1"] + wt["xgb_v1"] == pytest.approx(1.0, abs=0.1)
+    assert wm["elo_v1"] == pytest.approx(0.6, abs=0.08) and wm["ridge_v2"] == pytest.approx(0.4, abs=0.08)
+    assert wt["ridge_v2"] + wt["xgb_v2"] == pytest.approx(1.0, abs=0.1)
     # stacked margin is exactly the season's weights applied to the component predictions
     wide = wide_oof(oof, games, MARGIN_COMPONENTS, "margin").set_index("game_id")
     s16 = p[p.season == 2016].set_index("game_id")
     manual = wide.loc[s16.index, list(MARGIN_COMPONENTS)].to_numpy() @ np.array([wm[c] for c in MARGIN_COMPONENTS])
     assert np.allclose(s16["pred_margin"], manual)
-    eq = walkforward_stack(oof, games, equal=True, model_id="stack_eq_v1")
+    eq = walkforward_stack(oof, games, equal=True, model_id="stack_eq_v2")
     assert all(np.allclose(w.weights, 1 / len(w.weights)) for w in eq.weights)
 
 

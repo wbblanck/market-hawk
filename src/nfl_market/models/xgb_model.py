@@ -25,12 +25,21 @@ XGB_PARAMS = dict(n_estimators=100, max_depth=3, learning_rate=0.03, subsample=0
 class XGBModel(FeatureModel):
     features = XGB_FEATURES
 
-    def __init__(self, params: dict | None = None, model_id: str = "xgb_v1"):
+    def __init__(self, params: dict | None = None, model_id: str = "xgb_v1", extra: tuple[str, ...] = ()):
         super().__init__()
         self.params = dict(XGB_PARAMS, **(params or {}))
         self.model_id = model_id
+        self.extra = tuple(extra)
+        self.features = tuple(XGB_FEATURES) + self.extra
 
     def _make(self, target, hp):
         from xgboost import XGBRegressor
 
         return XGBRegressor(**self.params)
+
+
+def xgb_v2() -> XGBModel:
+    """``xgb_v2``: xgb_v1 (same a-priori settings) plus nflverse EPA and pre-game QB status."""
+    from nfl_market.features.external import EXTERNAL_COLUMNS
+
+    return XGBModel(model_id="xgb_v2", extra=EXTERNAL_COLUMNS)

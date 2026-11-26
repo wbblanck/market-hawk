@@ -192,3 +192,37 @@ decision:          follow-up. No stack beats elo_v1 or the best single model on 
 artifacts:         data/processed/step4_stack_predictions.parquet (gitignored), 1,942 rows, sha256
                    0164302238b75b37e8e25e3d942d1007e1e395187c56be8aebd216361b5ecb4a
 ```
+
+### 20261125-v2-epa-qb-01
+
+```text
+experiment_id:     20261125-v2-epa-qb-01
+created_at_utc:    2026-11-25T21:45:00Z
+operator:          Claude (requested by Will)
+hypothesis:        nflverse EPA team form and pre-game QB status lower margin/total MAE and win log loss of the
+                   feature models (ridge, xgb) on the step-3 fold table. Direction: lower.
+target/grain/T:    home margin, total, P(home win); one row per game; T = kickoff_utc - 24h
+data:              nflverse games.csv; nflverse play-by-play 1999-2024 and injuries 2009-2024 reduced to panels
+                   (data/raw/nflverse_ext/manifest.json sha256 per file); 2025 never downloaded
+features:          registry v2 (feature_rules.md): *_epa_l8, *_epa_ewm, *_pass_epa_ewm, qb_out, qb_epa (both sides)
+charter:           season_wf_weekly_v1, test seasons 2015-2024; constants fixed before the first scored run
+success rule:      paired game-clustered bootstrap 95% CI (B=2000) of v2 minus v1 below 0
+code/env/command:  scripts/experiments/recommendations_backtest.py (exploratory run), then scripts/run_walkforward.py and
+                   scripts/run_stacking.py on the production classes (ridge_v2, xgb_v2, stack_v2)
+status:            completed
+--- appended after run (2026-11-26) ---
+results:           docs/results/experiments/recommendations_backtest.md; docs/results/step3_walkforward.md. Pooled
+                   2015-2024: ridge_v2 margin MAE 10.110 (ridge_v1 10.144), total 10.678 (10.792), log loss 0.631
+                   (0.634); xgb_v2 margin 10.142 (xgb_v1 10.190), total 10.661 (10.773). Exploratory run CIs: ridge
+                   EPA+QB total -0.114 [-0.166, -0.058], log loss -0.003 [-0.006, -0.001], margin -0.035 [-0.081,
+                   +0.011]; xgb EPA+QB margin -0.047 [-0.080, -0.013], total -0.110 [-0.175, -0.048]. nflverse line
+                   9.821 / 10.444. stack_v2 (docs/results/step4_stacking.md) margin 10.166 vs best single ridge_v2
+                   10.156; total 10.635.
+beyond the line:   (pred - line) does not predict (result - line) for any model, spreads or totals; ATS/OU hit
+                   rates 47.6%-52.1%.
+leakage audit:     REVIEW REQUIRED (author checks in tests/test_external_features.py; injury rows without
+                   date_modified treated as available)
+holdout access:    none
+decision:          keep as production feature models (Will, 2026-11-25): ridge_v2 is the default pricing model and
+                   stack_v2 replaces stack_v1. Not an edge over the close. LightGBM and fitted Kalman discarded.
+```

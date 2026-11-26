@@ -1,9 +1,11 @@
-"""Step-4 stacking: simplex-weighted blends of the step-3 game models (``stack_v1``).
+"""Simplex-weighted blends of the game models (``stack_v2``; ``stack_v1`` used ridge_v1/xgb_v1).
 
 Two separate stacks are fit, because Kalman has no total:
 
-* **margin** over ``elo_v1``, ``kalman_gs_v1``, ``ridge_v1``, ``xgb_v1`` (``MARGIN_COMPONENTS``);
-* **total** over ``elo_v1``, ``ridge_v1``, ``xgb_v1`` (``TOTAL_COMPONENTS``).
+* **margin** over ``elo_v1``, ``kalman_gs_v1``, ``ridge_v2``, ``xgb_v2`` (``MARGIN_COMPONENTS``);
+* **total** over ``elo_v1``, ``ridge_v2``, ``xgb_v2`` (``TOTAL_COMPONENTS``).
+
+The v2 feature models add nflverse EPA and pre-game QB status (``features.external``).
 
 Walk-forward rule (season level, no weekly refit inside a season): the weights for
 test season ``S`` are fit only on OOF rows of seasons ``< S`` whose
@@ -23,7 +25,7 @@ used). ``pred_home_win_prob`` is ``P(M > 0) / (1 - P(M = 0))`` (home win given n
 tie), matching how win metrics drop ties.
 
 :class:`StackModel` is the deployable :class:`~nfl_market.models.interface.GameModel`
-holding component models and fixed weights (``config/models/stack_v1_weights.json``).
+holding component models and fixed weights (``config/models/stack_v2_weights.json``).
 The 2025 holdout is refused everywhere (``nfl_market.holdout.is_holdout``).
 """
 from __future__ import annotations
@@ -43,12 +45,12 @@ from nfl_market.holdout import REPO_ROOT, is_holdout
 from nfl_market.markets.interface import STACK_MODEL_ID
 from nfl_market.models.interface import PREDICTION_COLUMNS, validate_predictions
 
-MARGIN_COMPONENTS: tuple[str, ...] = ("elo_v1", "kalman_gs_v1", "ridge_v1", "xgb_v1")
-TOTAL_COMPONENTS: tuple[str, ...] = ("elo_v1", "ridge_v1", "xgb_v1")
-EQUAL_MODEL_ID = "stack_eq_v1"
+MARGIN_COMPONENTS: tuple[str, ...] = ("elo_v1", "kalman_gs_v1", "ridge_v2", "xgb_v2")
+TOTAL_COMPONENTS: tuple[str, ...] = ("elo_v1", "ridge_v2", "xgb_v2")
+EQUAL_MODEL_ID = "stack_eq_v2"
 MIN_TRAIN_SEASONS = 3
 OBJECTIVES = ("squared", "mae")
-DEFAULT_WEIGHTS_FILE = REPO_ROOT / "config" / "models" / "stack_v1_weights.json"
+DEFAULT_WEIGHTS_FILE = REPO_ROOT / "config" / "models" / "stack_v2_weights.json"
 
 
 # ------------------------------------------------------------------ guards
@@ -348,6 +350,12 @@ def make_component(model_id: str):
     if model_id == "xgb_v1":
         from nfl_market.models.xgb_model import XGBModel
         return XGBModel()
+    if model_id == "ridge_v2":
+        from nfl_market.models.ridge_model import ridge_v2
+        return ridge_v2()
+    if model_id == "xgb_v2":
+        from nfl_market.models.xgb_model import xgb_v2
+        return xgb_v2()
     raise ValueError(f"unknown component model id {model_id!r}")
 
 

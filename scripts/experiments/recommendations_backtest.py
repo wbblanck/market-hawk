@@ -28,7 +28,7 @@ Pre-registered constants (chosen before the first scored run, not tuned):
 * Fitted Kalman/Bayes: Nelder-Mead on the one-step-ahead predictive log likelihood of all labelled games in
   seasons <= the last complete training season, from the frozen/a-priori values; refit once per outer fold.
 
-    python scripts/experiments/prep_nflverse_ext.py          # once
+    python -m nfl_market.data.nflverse_ext --last-season 2024   # once
     python scripts/experiments/recommendations_backtest.py
 """
 from __future__ import annotations

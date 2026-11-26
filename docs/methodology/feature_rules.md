@@ -54,6 +54,22 @@ used by: experiment ids / model cards
 
 Admission establishes legality, not value. A feature earns a place in a promoted model only by improving out-of-fold results on identical folds (`predictive_modeling.md`).
 
+## Registry v2: nflverse EPA and QB status (status: proposed, 2026-11-25)
+
+Code: `src/nfl_market/features/external.py` (formulas and constants in its docstring), data:
+`src/nfl_market/data/nflverse_ext.py`. Used by `ridge_v2`, `xgb_v2` and `stack_v2`. Tests:
+`tests/test_external_features.py` (point-in-time by hand, future-perturbation, report-time boundary, holdout refusal).
+
+| field | EPA features (`*_epa_l8`, `*_epa_ewm`, `*_pass_epa_ewm`) | QB features (`qb_out`, `qb_epa`) |
+|---|---|---|
+| source | nflverse play-by-play: `epa`, `pass`, `rush`, `posteam`, `defteam` | nflverse play-by-play `qb_dropback`, `qb_epa`, `id`; nflverse injuries `report_status`, `gsis_id`, `date_modified` |
+| grain | team-game panel, joined per side | team-game panel + player-game panel + weekly report |
+| available_at rule | the contributing game's `label_available_at_utc` (Wednesday noon ET after kickoff) | starter and his EPA: same as EPA; report row: `date_modified` |
+| as-of rule | games with label < T, in (label, kickoff, game_id) order; last 8 or EWMA alpha 0.10 | expected starter = most dropbacks in the latest game with label < T; report must have `date_modified` < T |
+| missing policy | NaN before a team's first panel game (fold-fitted median imputer + indicator in Ridge; native NaN in XGB) | NaN qb_out for seasons without injury data (before 2009); rows without `date_modified` (2009, and 2025 onward) treated as available: REVIEW REQUIRED |
+| fold-fitted components | imputer, scaler (Ridge) | same |
+| known caveats | EPA is itself model output (nflfastR EP model, trained on history; version changes between releases: hashes in `data/raw/nflverse_ext/manifest.json`) | the live-season injury file is overwritten in place, so forward runs use the report as fetched at pricing time; a daily snapshot is needed before 2026 can be backtested honestly |
+
 ## Known nonconformance
 
 `src/nfl_market/features/pit.py::add_market_features` sets `market_dispersion` = per-contract std with `.fillna(0)`. The std across a single book is undefined, so 0 asserts "no disagreement" that was never observed (breaks R4). It also computes across all capture times (breaks R3; see `leakage_audit.md`). To be fixed before admission in step 3.

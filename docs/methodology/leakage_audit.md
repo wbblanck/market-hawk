@@ -72,6 +72,7 @@ Deleting a suspicious column after scoring does not rescue a result. The rebuilt
 | Post-game injury reports, IR moves, snap counts, "who actually started" from play-by-play | published after kickoff | use the last pre-T injury report / inactives with its publication time; current-game starter only from a pre-T source |
 | Closing line as a feature for a pre-close prediction | the close is after T | features use the line as-of T (`captured_at_utc <= T`) |
 | nflverse `spread_line` / `total_line` used at an early T | provider line with unknown capture time, close-like | not a feature; at most a labelled benchmark |
+| nflverse play-by-play `vegas_wp`, `vegas_home_wp`, `vegas_wpa`, `spread_line`, `total_line` | the same unknown-capture-time line, embedded in every play | never read: `data/nflverse_ext.py` loads only the columns in `PBP_COLUMNS` (tested) |
 | Schedule revisions (flexed games, postponements, 2020 reschedules, cancelled games, kickoff time changes) | rest days and T computed from the final schedule, not the one known at T | compute T and rest from the schedule as known at T; cancelled games excluded and flagged |
 | Stat corrections | historical tables show corrected values that were not known on the day | use as-of vintages or embargo (validation_design.md Section 4) |
 | Weather observations | actual conditions are post-T | forecast vintage as of T only |

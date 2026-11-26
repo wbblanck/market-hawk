@@ -30,10 +30,10 @@ from nfl_market.models.bayesian import BayesianStrengthModel, KalmanMarginModel 
 from nfl_market.models.constant import ConstantModel  # noqa: E402
 from nfl_market.models.elo import EloModel  # noqa: E402
 from nfl_market.models.folds import FOLD_TABLE_ID, fold_table  # noqa: E402
-from nfl_market.models.ridge_model import RidgeModel  # noqa: E402
+from nfl_market.models.ridge_model import RidgeModel, ridge_v2  # noqa: E402
 from nfl_market.models.runner import (attach_outcomes, folds_won, game_metrics, metrics_table,  # noqa: E402
                                       paired_bootstrap, run_walkforward)
-from nfl_market.models.xgb_model import XGBModel  # noqa: E402
+from nfl_market.models.xgb_model import XGBModel, xgb_v2  # noqa: E402
 
 OUT_PRED = ROOT / "data" / "processed" / "step3_oof_predictions.parquet"
 #: static section; its numbers come from tests/test_parity_models.py (REPORT) against the committed goldens
@@ -126,7 +126,8 @@ def main() -> None:
     t0 = time.time()
     games = load_games()
     games = games[games.season <= max(seasons)].reset_index(drop=True)   # 2026 never enters
-    models = [ConstantModel(), EloModel(), KalmanMarginModel(), BayesianStrengthModel(), RidgeModel(), XGBModel()]
+    models = [ConstantModel(), EloModel(), KalmanMarginModel(), BayesianStrengthModel(), RidgeModel(), XGBModel(),
+              ridge_v2(), xgb_v2()]
     preds = run_walkforward(games, models, seasons, verbose=True)
     runtime = time.time() - t0
     timing = preds.attrs.get("fit_predict_seconds", {})
