@@ -226,3 +226,27 @@ holdout access:    none
 decision:          keep as production feature models (Will, 2026-11-25): ridge_v2 is the default pricing model and
                    stack_v2 replaces stack_v1. Not an edge over the close. LightGBM and fitted Kalman discarded.
 ```
+
+```
+experiment_id:     20261126-ebm-ngboost-01
+created_at_utc:    2026-11-26T04:10:00Z
+operator:          Claude (requested by Will)
+hypothesis:        (1) an EBM on the xgb_v2 features is as accurate as ridge_v2/xgb_v2 and shows whether XGBoost's
+                   learned relationships are sensible; (2) NGBoost per-game sigma improves margin/total pmf log score
+                   over production (k1 margin, t total on ridge_v2 means). Direction: lower MAE, better log score.
+target/grain/T:    home margin, total; one row per game; T = kickoff_utc - 24h
+data:              nflverse games.csv; nflverse_ext panels (as 20261125-v2-epa-qb-01); step3 OOF predictions
+charter:           test seasons 2015-2024, season-level refits (xgb season-refit control); distributions scored
+                   2018-2024; settings fixed in the script docstring before the first scored run
+success rule:      (season, week)-clustered bootstrap 95% CI (B=2000) of the difference excludes 0 in the good direction
+code/env/command:  python scripts/experiments/ebm_ngboost_backtest.py (interpret 0.7.8, ngboost 0.6.1)
+status:            completed
+results:           docs/results/experiments/ebm_ngboost_backtest.md. EBM MAE margin 10.133 / total 10.666 vs ridge_v2
+                   10.110 / 10.678 (CIs include 0). NGBoost sigma-only log score -0.171 margin, -0.066 total vs
+                   production; NGBoost full -0.127 / -0.013 (all CIs below 0); corr(sigma, |resid|) about 0.
+                   Diagnostic: signs agree across EBM/XGB/Ridge; xgb_v2 home-QB-out effect -1.0 pts vs EBM -3.0,
+                   Ridge -4.0.
+holdout access:    none
+decision:          not adopted (EBM kept as a diagnostic only); production distributions unchanged. xgb QB-out
+                   under-reaction recorded as a follow-up candidate.
+```
