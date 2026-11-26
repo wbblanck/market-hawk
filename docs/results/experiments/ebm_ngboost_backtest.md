@@ -177,6 +177,19 @@ results-versus-line gap (0.5, CI including 0) shows no edge from QB-out games: t
 **Caveat.** The flag catches only starters listed Out or Doubtful who started the team's previous game. QBs hurt
 mid-game the week before, where the backup already had the most dropbacks, are not flagged.
 
+### Open-to-close check (SBRO, 2009-2021)
+
+The SBRO open and close spreads come from `wbblanck/NFL_ATS` `data/processed/sbro_lines.csv`. They are copied to
+the gitignored `data/raw/external/` and never committed here. The open is usually posted before the week's
+injury news, so the open-to-close move in flagged games measures the market's reaction directly.
+
+The sample is 3,474 games with 118 flagged starters. The line moves **1.60 points [1.11, 2.11]** against the team
+whose starter is ruled out (home -1.21, away +1.99). The move SD is 2.05.
+
+In 31% of flagged games the line did not move or moved the other way, and the median move is 1.0. Those are
+mostly games where the news was out before the open, so 1.6 is a lower bound on the full adjustment. It is
+consistent with the 3.05-point level estimate above, and its CI sits above xgb_v2's 1.0.
+
 ## Decisions (Will, 2026-11-26)
 
 These follow the recommendations Will accepted.

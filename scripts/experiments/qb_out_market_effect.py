@@ -66,3 +66,39 @@ for lo, hi in ((2009, 2016), (2017, 2024)):
     m = ((d.season >= lo) & (d.season <= hi)).to_numpy()
     b = np.linalg.lstsq(X[m], d.spread_line.to_numpy(float)[m], rcond=None)[0]
     print(lo, hi, "line: home", round(b[-2], 2), "away", round(b[-1], 2), "n flags", int(d.home_qb_out[m].sum() + d.away_qb_out[m].sum()))
+
+# ---------------------------------------------------------------- open -> close (SBRO, 2009-2021)
+# SBRO open/close spreads (copied from wbblanck/NFL_ATS data/processed/sbro_lines.csv into the gitignored
+# data/raw/external/; never committed here). The open is posted before most of the week's injury news, so the
+# open-to-close move in games where the expected starter is ruled out estimates the market's QB-out
+# adjustment directly. When the news was already out at the open the move understates it (lower bound).
+sb_path = ROOT / "data" / "raw" / "external" / "sbro_lines.csv"
+if sb_path.exists():
+    sb = pd.read_csv(sb_path)
+    sb = sb[(sb.open_status == "ok") & (sb.close_status == "ok")]
+    e = sb.merge(f[["game_id", "home_qb_out", "away_qb_out", "week_no", "season"]].rename(columns={"season": "s2"}),
+                 on="game_id")
+    e = e[e.home_qb_out.notna()]
+    e["move_home"] = -(e.close_home_spread - e.open_home_spread)   # home-perspective points, + = toward home
+    Xo = np.column_stack([np.ones(len(e)), e.home_qb_out, e.away_qb_out])
+    yo = e.move_home.to_numpy(float)
+    bo = np.linalg.lstsq(Xo, yo, rcond=None)[0]
+    blk2 = pd.factorize(e.season.astype(str) + "_" + e.week_no.astype(str))[0]
+    idx2 = [np.flatnonzero(blk2 == b) for b in range(blk2.max() + 1)]
+    bs2 = []
+    for _ in range(4000):
+        ii = np.concatenate([idx2[b] for b in rng.integers(0, len(idx2), len(idx2))])
+        bs2.append(np.linalg.lstsq(Xo[ii], yo[ii], rcond=None)[0][1:])
+    bs2 = np.array(bs2)
+    pooled = (bo[2] - bo[1]) / 2
+    pb2 = (bs2[:, 1] - bs2[:, 0]) / 2
+    print(f"\nSBRO open->close, {len(e)} games 2009-{int(e.season.max())}, flags home {int(e.home_qb_out.sum())} "
+          f"away {int(e.away_qb_out.sum())}; move SD {yo.std():.2f}")
+    print(f"home_qb_out {bo[1]:.2f} [{np.quantile(bs2[:, 0], .025):.2f}, {np.quantile(bs2[:, 0], .975):.2f}]  "
+          f"away_qb_out {bo[2]:.2f} [{np.quantile(bs2[:, 1], .025):.2f}, {np.quantile(bs2[:, 1], .975):.2f}]")
+    print(f"pooled move against the team whose QB is out: {pooled:.2f} "
+          f"[{np.quantile(pb2, .025):.2f}, {np.quantile(pb2, .975):.2f}]")
+    fl = e[(e.home_qb_out == 1) | (e.away_qb_out == 1)]
+    mv = np.where(fl.home_qb_out == 1, -fl.move_home, fl.move_home)
+    print("flagged-game moves against the out team: share >= 3 pts", round(float(np.mean(mv >= 3)), 2),
+          "share <= 0", round(float(np.mean(mv <= 0)), 2), "median", float(np.median(mv)))
