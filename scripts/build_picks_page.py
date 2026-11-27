@@ -229,6 +229,27 @@ details h4{font-family:var(--display);font-size:.9rem;margin:12px 0 2px}
 details p{margin:4px 0}details ul{margin:4px 0;padding-left:20px}details li+li{margin-top:4px}
 .fine{color:var(--muted);font-size:.82rem}
 .notes{color:var(--muted);font-size:.88rem;max-width:80ch}.notes li+li{margin-top:4px}
+@media (max-width:720px){
+.wrap{padding-block:18px 32px;gap:14px}
+h1{font-size:1.45rem}
+.tbl{overflow:visible;background:none;border:none}
+table,tbody,tr,td,th{display:block}
+table{min-width:0}
+thead{display:none}
+tr.day th{background:none;padding:14px 2px 4px;border:none}
+tr.game{display:grid;grid-template-columns:1fr 1fr;gap:10px 12px;background:var(--surface);border:1px solid var(--line);border-bottom:none;border-radius:10px 10px 0 0;padding:12px 14px 4px}
+tr.game td{padding:0;border:none}
+tr.game td.match{grid-column:1/-1;display:flex;justify-content:space-between;align-items:baseline;gap:8px;font-size:1.05rem}
+tr.game td.match b{display:inline}
+tr.game td[data-label]::before{content:attr(data-label);display:block;font-family:var(--body);font-size:.68rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+tr.game td.bets{grid-column:1/-1;padding:8px 0 10px;border-top:1px solid var(--line)}
+tr.whyrow{background:var(--surface);border:1px solid var(--line);border-top:none;border-radius:0 0 10px 10px;margin-bottom:6px;padding:0 14px 8px}
+tr.whyrow td{padding:0}
+details summary{padding:10px 0;font-size:.95rem}
+td.why{min-height:0}
+tr.tonight,tr.tonight td{background:var(--tonight)}
+.warn{padding:12px 14px}
+}
 """
 
 
@@ -259,9 +280,9 @@ def build(games_out: list[dict], explain: dict[str, dict], stamp: str) -> str:
         fs = spread_text(g["home"], g["away"], g["fair_home_spread"]) if g["fair_home_spread"] is not None else "n/a"
         rows.append(
             f'<tr class="game"><td class="match"><b>{g["away"]} @ {g["home"]}</b><span class="t">{tm}</span></td>'
-            f'<td{" class=gap" if gap_s else ""}>{fs}</td>'
-            f'<td>{spread_text(g["home"], g["away"], g["mkt_home_spread"])} <span class="o">{odds(g["mkt_spread_odds"])}</span></td>'
-            f'<td{" class=gap" if gap_t else ""}>{g["fair_total"]:.1f}</td><td>{g["mkt_total"]:g}</td><td class="bets">{cell}</td></tr>'
+            f'<td data-label="Model spread"{" class=gap" if gap_s else ""}>{fs}</td>'
+            f'<td data-label="Market spread">{spread_text(g["home"], g["away"], g["mkt_home_spread"])} <span class="o">{odds(g["mkt_spread_odds"])}</span></td>'
+            f'<td data-label="Model total"{" class=gap" if gap_t else ""}>{g["fair_total"]:.1f}</td><td data-label="Market total">{g["mkt_total"]:g}</td><td class="bets" data-label="Paper bet">{cell}</td></tr>'
             f'<tr class="whyrow"><td colspan="6" class="why">{why}</td></tr>')
     return f"""<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Market Hawk Week 12</title>
